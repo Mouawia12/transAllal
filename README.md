@@ -7,7 +7,7 @@ This workspace is organized as:
 - one child repository for `dashboard-trans-allal`
 - one child repository for `app-trans-allal`
 
-Each project remains an independent Git repository. This workspace does not use submodules and is not a monorepo.
+Each project remains an independent Git repository. The root repository also keeps a workspace-level snapshot of the three child project directories. This workspace does not use submodules and is not a monorepo.
 
 ## Repository Layout
 
@@ -51,5 +51,5 @@ update all repositories
 ## Notes
 
 - The root repo is intentionally separate from the three child repos.
-- Child repo directories are ignored by the root repo to avoid embedded-repository or submodule behavior.
+- The root repo now includes the child project source trees as part of the workspace snapshot.
 - Use `GIT_WORKFLOW.md` for the daily workflow.

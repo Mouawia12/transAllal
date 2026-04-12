@@ -1,0 +1,10 @@
+:root {
+  --color-canvas: #f4efe7;
+  --color-panel: rgba(255, 255, 255, 0.76);
+  --color-ink: #17120e;
+  --color-muted: #62584d;
+  --color-brand: #0c6b58;
+  --color-accent: #c95f3a;
+  --color-border: rgba(23, 18, 14, 0.1);
+  --shadow-panel: 0 24px 60px rgba(23, 18, 14, 0.12);
+}
