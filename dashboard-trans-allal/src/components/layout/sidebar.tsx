@@ -1,32 +1,61 @@
-import Link from "next/link";
-import { dashboardNavigation } from "@/lib/constants/navigation";
+'use client';
+
+import {
+  AlertTriangle,
+  BarChart3,
+  Building2,
+  LayoutDashboard,
+  MapPin,
+  Route,
+  Settings,
+  Truck,
+  Users,
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { cn } from '../../lib/utils/cn';
+
+const navItems = [
+  { key: 'overview', href: '/', icon: LayoutDashboard },
+  { key: 'companies', href: '/companies', icon: Building2 },
+  { key: 'drivers', href: '/drivers', icon: Users },
+  { key: 'trucks', href: '/trucks', icon: Truck },
+  { key: 'trips', href: '/trips', icon: Route },
+  { key: 'tracking', href: '/tracking', icon: MapPin },
+  { key: 'alerts', href: '/alerts', icon: AlertTriangle },
+  { key: 'reports', href: '/reports', icon: BarChart3 },
+  { key: 'settings', href: '/settings', icon: Settings },
+];
 
 export function Sidebar() {
-  return (
-    <aside className="rounded-[32px] border border-[var(--color-border)] bg-[rgba(11,42,36,0.94)] p-6 text-white shadow-[var(--shadow-panel)]">
-      <div className="mb-8 space-y-3">
-        <p className="text-xs uppercase tracking-[0.3em] text-white/55">
-          dashboard-trans-allal
-        </p>
-        <h2 className="text-2xl font-semibold tracking-tight">
-          Trans Allal Operations Workspace
-        </h2>
-        <p className="text-sm leading-6 text-white/70">
-          Structured for backend integration, auth expansion, analytics, and realtime fleet visibility.
-        </p>
-      </div>
+  const pathname = usePathname();
+  const t = useTranslations('nav');
 
-      <nav className="space-y-2">
-        {dashboardNavigation.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="block rounded-2xl border border-white/10 bg-white/5 px-4 py-3 transition hover:bg-white/10"
-          >
-            <p className="text-sm font-medium">{item.label}</p>
-            <p className="mt-1 text-xs leading-5 text-white/60">{item.description}</p>
-          </Link>
-        ))}
+  return (
+    <aside className="flex flex-col w-60 shrink-0 bg-white dark:bg-gray-900 border-e border-gray-200 dark:border-gray-700 h-full">
+      <div className="flex items-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
+        <span className="font-bold text-lg text-blue-600">Trans Allal</span>
+      </div>
+      <nav className="flex-1 py-4 overflow-y-auto">
+        {navItems.map(({ key, href, icon: Icon }) => {
+          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+          return (
+            <Link
+              key={key}
+              href={href}
+              className={cn(
+                'flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm font-medium transition-colors',
+                active
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  : 'text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800',
+              )}
+            >
+              <Icon size={18} />
+              {t(key as Parameters<typeof t>[0])}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );

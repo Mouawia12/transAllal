@@ -1,5 +1,11 @@
-export enum WebsocketEvent {
-  DriverLocationUpdated = 'driver.location.updated',
-  TripStatusChanged = 'trip.status.changed',
-  AlertRaised = 'alert.raised',
-}
+export const WsEvents = {
+  // Client → Server
+  DRIVER_LOCATION_PUBLISH: 'driver.location.publish',
+  COMPANY_SUBSCRIBE: 'company.subscribe',
+  DRIVER_SUBSCRIBE: 'driver.subscribe',
+  // Server → Client
+  DRIVER_LOCATION_UPDATED: 'driver.location.updated',
+  ALERT_RAISED: 'alert.raised',
+  TRIP_STATUS_CHANGED: 'trip.status.changed',
+  DRIVER_ONLINE_CHANGED: 'driver.online.changed',
+} as const;

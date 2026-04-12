@@ -1,35 +1,28 @@
-import type { Metadata } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
+import { Geist } from 'next/font/google';
+import './globals.css';
+import { Providers } from './providers';
 
-const displayFont = Space_Grotesk({
-  variable: "--font-display",
-  subsets: ["latin"],
-});
-
-const monoFont = IBM_Plex_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
-});
+const geist = Geist({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: "Trans Allal Dashboard",
-  description: "Scaffolded dashboard workspace for operations and admin flows.",
+  title: 'Trans Allal Dashboard',
+  description: 'Fleet management and logistics platform',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+  const dir = locale === 'ar' ? 'rtl' : 'ltr';
+
   return (
-    <html
-      lang="en"
-      className={`${displayFont.variable} ${monoFont.variable} h-full antialiased`}
-    >
-      <body className="min-h-full bg-[var(--color-canvas)] text-[var(--color-ink)]">
-        {children}
+    <html lang={locale} dir={dir}>
+      <body className={geist.className}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

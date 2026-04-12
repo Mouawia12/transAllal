@@ -77,7 +77,41 @@ Role:       SUPER_ADMIN | COMPANY_ADMIN | DISPATCHER | DRIVER
 TripStatus: PENDING | IN_PROGRESS | COMPLETED | CANCELLED
 AlertType:  SPEEDING | GEOFENCE_EXIT | IDLE | SOS | ROUTE_DEVIATION
 Severity:   LOW | MEDIUM | HIGH | CRITICAL
+Locale:     en | ar
 ```
+
+### i18n & RTL Contract (apply to Dashboard and Mobile — not Backend)
+- **Supported locales:** `en` (English, LTR) and `ar` (Arabic, RTL)
+- **Default locale:** `ar`
+- **Direction:** `dir="ltr"` for English, `dir="rtl"` for Arabic — applied at the root HTML/View level
+- **Library (Dashboard):** `next-intl` with App Router integration
+- **Library (Mobile):** `i18next` + `react-i18next` + `expo-localization`
+- **Translation file structure:** flat JSON files per locale, one file per feature namespace
+  ```
+  messages/                     (Dashboard)
+  ├── en/
+  │   ├── common.json           (shared: buttons, labels, errors, status values)
+  │   ├── auth.json
+  │   ├── companies.json
+  │   ├── drivers.json
+  │   ├── trucks.json
+  │   ├── trips.json
+  │   ├── tracking.json
+  │   ├── alerts.json
+  │   ├── reports.json
+  │   └── settings.json
+  └── ar/
+      └── (same structure, all keys identical)
+
+  src/locales/                  (Mobile)
+  ├── en.json                   (single flat file — mobile has fewer strings)
+  └── ar.json
+  ```
+- **Key naming:** `snake_case` keys, nested by feature. Example: `{ "trips": { "start_trip": "Start Trip", "complete_trip": "Complete Trip" } }`
+- **No hardcoded UI strings** anywhere — every visible label, button, placeholder, error message, and toast must use a translation key
+- **RTL layout rule (Dashboard):** use Tailwind `rtl:` variants for mirroring. Example: `ml-4 rtl:ml-0 rtl:mr-4`, `flex-row rtl:flex-row-reverse`. Do NOT use absolute left/right positioning in shared components — use logical CSS properties (`start`, `end`) when possible
+- **RTL layout rule (Mobile):** React Native's flexbox automatically mirrors when `I18nManager.isRTL` is true. Use `flexDirection: 'row'` and let the system mirror; avoid hardcoded `left`/`right` style properties in shared components
+- **Language switching:** persisted to `localStorage` (Dashboard) and `AsyncStorage` (Mobile); app reloads/restarts are acceptable when switching language on mobile
 
 ### Persistence Decision
 - **TypeORM only** in backend Phase 1 through Phase 4
@@ -646,23 +680,107 @@ Severity:   LOW | MEDIUM | HIGH | CRITICAL
 
 ---
 
-### 2-M  Overview + Settings
+### 2-M  i18n Setup (Dashboard)
 
-- [ ] **2-M-1** Keep `/` as the only overview route:
-  - `src/features/overview/overview-page.tsx` becomes the real overview implementation
-  - `src/app/(dashboard)/page.tsx` remains the thin route entry for that overview
-  - do **not** add a competing `src/app/(dashboard)/overview/page.tsx` route
-- [ ] **2-M-2** `src/app/(dashboard)/settings/page.tsx` — form to update current user profile (firstName, lastName, email, password change)
+- [ ] **2-M-1** Install `next-intl`
+  ```bash
+  cd dashboard-trans-allal
+  npm install next-intl
+  ```
+
+- [ ] **2-M-2** Configure `next-intl` in `next.config.ts`
+  - Enable `createNextIntlPlugin` wrapper
+  - Supported locales: `['ar', 'en']`, default locale: `'ar'`
+
+- [ ] **2-M-3** Create `src/i18n/request.ts` — `next-intl` server-side config
+  - Read locale from cookie `NEXT_LOCALE` (fallback: `'ar'`)
+  - Load messages from `messages/<locale>/<namespace>.json`
+
+- [ ] **2-M-4** Create translation files for all namespaces:
+  - `messages/ar/common.json` + `messages/en/common.json`
+    ```json
+    {
+      "save": "Save / حفظ",
+      "cancel": "Cancel / إلغاء",
+      "delete": "Delete / حذف",
+      "edit": "Edit / تعديل",
+      "create": "Create / إنشاء",
+      "search": "Search / بحث",
+      "loading": "Loading… / جارٍ التحميل…",
+      "no_data": "No data available / لا توجد بيانات",
+      "confirm_delete": "Are you sure you want to delete? / هل أنت متأكد من الحذف؟",
+      "status": {
+        "PENDING": "Pending / قيد الانتظار",
+        "IN_PROGRESS": "In Progress / جارٍ التنفيذ",
+        "COMPLETED": "Completed / مكتمل",
+        "CANCELLED": "Cancelled / ملغى",
+        "active": "Active / نشط",
+        "inactive": "Inactive / غير نشط"
+      },
+      "severity": {
+        "LOW": "Low / منخفض",
+        "MEDIUM": "Medium / متوسط",
+        "HIGH": "High / عالٍ",
+        "CRITICAL": "Critical / حرج"
+      }
+    }
+    ```
+  - `messages/ar/auth.json` + `messages/en/auth.json`
+  - `messages/ar/companies.json` + `messages/en/companies.json`
+  - `messages/ar/drivers.json` + `messages/en/drivers.json`
+  - `messages/ar/trucks.json` + `messages/en/trucks.json`
+  - `messages/ar/trips.json` + `messages/en/trips.json`
+  - `messages/ar/tracking.json` + `messages/en/tracking.json`
+  - `messages/ar/alerts.json` + `messages/en/alerts.json`
+  - `messages/ar/reports.json` + `messages/en/reports.json`
+  - `messages/ar/settings.json` + `messages/en/settings.json`
+
+- [ ] **2-M-5** Update root `src/app/layout.tsx`
+  - Set `<html lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'}>` dynamically
+  - Import and load `next-intl`'s `NextIntlClientProvider`
+
+- [ ] **2-M-6** Add font support for Arabic
+  - Load `Noto Sans Arabic` (Google Fonts or local) for `dir="rtl"`
+  - Load `Inter` for `dir="ltr"`
+  - Apply via Tailwind `fontFamily` config — `font-sans` resolves to the correct font based on direction
+
+- [ ] **2-M-7** `src/components/layout/language-switcher.tsx`
+  - Toggle button: shows "العربية" when current locale is `en`, shows "English" when current locale is `ar`
+  - On click: set cookie `NEXT_LOCALE=<new>`, call `router.refresh()` to re-render with new locale
+  - Place inside `topbar.tsx` next to user avatar
+
+- [ ] **2-M-8** Apply RTL-aware Tailwind classes to all shared components built in `2-D`:
+  - `button.tsx`: padding direction, icon placement
+  - `input.tsx`: `text-start` instead of `text-left`, error message alignment
+  - `modal.tsx`: header and footer alignment
+  - `table.tsx`: header alignment, action column position
+  - `sidebar.tsx`: icon and label order, active indicator position
+  - `topbar.tsx`: user menu side, logo position
+  - Rule: use `rtl:` Tailwind variants, never duplicate a component for each direction
+
+- [ ] **2-M-9** Replace all hardcoded UI strings in every feature page and component built in sections `2-E` through `2-L` with `useTranslations('<namespace>')` hook calls
 
 ---
 
-### 2-N  Dashboard Verification
+### 2-N  Overview + Settings
 
-- [ ] **2-N-1** `npm run build` — zero TypeScript errors
-- [ ] **2-N-2** `npm run dev` — dev server starts on port 3001
-- [ ] **2-N-3** Navigate to `/sign-in` → login → redirect to `/` works
-- [ ] **2-N-4** Navigate to `/companies` → table loads with real data from backend
-- [ ] **2-N-5** Navigate to `/tracking` → map renders with markers, live updates arrive via WebSocket
+- [ ] **2-N-1** Keep `/` as the only overview route:
+  - `src/features/overview/overview-page.tsx` becomes the real overview implementation
+  - `src/app/(dashboard)/page.tsx` remains the thin route entry for that overview
+  - do **not** add a competing `src/app/(dashboard)/overview/page.tsx` route
+- [ ] **2-N-2** `src/app/(dashboard)/settings/page.tsx` — form to update current user profile (firstName, lastName, email, password change) + language preference selector (AR / EN)
+
+---
+
+### 2-O  Dashboard Verification
+
+- [ ] **2-O-1** `npm run build` — zero TypeScript errors
+- [ ] **2-O-2** `npm run dev` — dev server starts on port 3001
+- [ ] **2-O-3** Navigate to `/sign-in` → login → redirect to `/` works
+- [ ] **2-O-4** Navigate to `/companies` → table loads with real data from backend
+- [ ] **2-O-5** Navigate to `/tracking` → map renders with markers, live updates arrive via WebSocket
+- [ ] **2-O-6** Click language switcher → page re-renders in Arabic with `dir="rtl"` and mirrored layout; switch back to English → `dir="ltr"` restores correctly
+- [ ] **2-O-7** Inspect `<html>` tag in DevTools — `dir` and `lang` attributes match active locale
 
 ---
 
@@ -861,19 +979,116 @@ Severity:   LOW | MEDIUM | HIGH | CRITICAL
 
 ---
 
-### 3-J  Offline Buffering
+### 3-J  i18n Setup (Mobile)
 
-- [ ] **3-J-1** In `connectivity.service.ts`: implement `offlineQueue` as array in module scope, persisted to `AsyncStorage` with key `ta_offline_queue`
-- [ ] **3-J-2** On network reconnect: `flushQueue()` → iterate queue, POST each location to `POST /tracking/location`, clear queue on success
+- [ ] **3-J-1** Install i18n packages
+  ```bash
+  cd app-trans-allal
+  npx expo install expo-localization
+  npm install i18next react-i18next
+  npm install @react-native-async-storage/async-storage
+  ```
+
+- [ ] **3-J-2** Create translation files
+  - `src/locales/ar.json` — Arabic strings (default)
+  - `src/locales/en.json` — English strings
+  - Both files share identical key structure:
+    ```json
+    {
+      "common": {
+        "save": "...", "cancel": "...", "loading": "...", "no_data": "...",
+        "go_online": "...", "go_offline": "...", "confirm": "...", "reset": "..."
+      },
+      "auth": { "sign_in": "...", "phone": "...", "password": "...", "login_button": "..." },
+      "trip": {
+        "my_trips": "...", "start_trip": "...", "complete_trip": "...",
+        "origin": "...", "destination": "...", "scheduled_at": "...",
+        "status": { "PENDING": "...", "IN_PROGRESS": "...", "COMPLETED": "...", "CANCELLED": "..." }
+      },
+      "tracking": { "tracking_active": "...", "no_active_trip": "...", "speed": "...", "heading": "..." },
+      "profile": { "title": "...", "edit": "...", "logout": "..." },
+      "settings": { "title": "...", "language": "...", "version": "...", "clear_cache": "..." }
+    }
+    ```
+
+- [ ] **3-J-3** `src/lib/i18n.ts` — initialize `i18next`
+  ```typescript
+  import i18n from 'i18next';
+  import { initReactI18next } from 'react-i18next';
+  import * as Localization from 'expo-localization';
+  import AsyncStorage from '@react-native-async-storage/async-storage';
+  import en from '../locales/en.json';
+  import ar from '../locales/ar.json';
+
+  const LANGUAGE_KEY = 'ta_language';
+
+  export async function initI18n() {
+    const saved = await AsyncStorage.getItem(LANGUAGE_KEY);
+    const deviceLang = Localization.getLocales()[0]?.languageCode ?? 'ar';
+    const lng = saved ?? (deviceLang === 'ar' ? 'ar' : 'en');
+
+    await i18n.use(initReactI18next).init({
+      lng,
+      fallbackLng: 'ar',
+      resources: { en: { translation: en }, ar: { translation: ar } },
+      interpolation: { escapeValue: false },
+    });
+  }
+
+  export async function changeLanguage(lang: 'ar' | 'en') {
+    await AsyncStorage.setItem(LANGUAGE_KEY, lang);
+    await i18n.changeLanguage(lang);
+    // RTL is handled in the call site — see 3-J-4
+  }
+
+  export default i18n;
+  ```
+
+- [ ] **3-J-4** RTL handling in `src/app/_layout.tsx`
+  - Call `await initI18n()` before rendering (inside the existing `hydrate` logic)
+  - After i18n is initialized:
+    ```typescript
+    import { I18nManager } from 'react-native';
+    const isRTL = i18n.language === 'ar';
+    if (I18nManager.isRTL !== isRTL) {
+      I18nManager.forceRTL(isRTL);
+      // RN requires a full reload to apply RTL — trigger via expo-updates or warn user
+    }
+    ```
+  - Wrap app with `<I18nextProvider i18n={i18n}>`
+
+- [ ] **3-J-5** Language switcher in `src/screens/settings/settings-screen.tsx`
+  - Two radio/toggle buttons: "العربية" and "English"
+  - On select: call `changeLanguage(lang)` → show a confirmation dialog: "الرجاء إعادة تشغيل التطبيق لتطبيق اللغة / Please restart the app to apply the language change"
+  - This is standard React Native behavior — a full restart is required for RTL changes
+
+- [ ] **3-J-6** Replace all hardcoded strings in every screen built in sections `3-E` through `3-I` with `useTranslation()` hook calls
+  ```typescript
+  const { t } = useTranslation();
+  // Usage: t('trip.start_trip')
+  ```
+
+- [ ] **3-J-7** RTL-safe styles — audit all screens and components:
+  - No `left`/`right` in `StyleSheet` — use `start`/`end` or let flexbox mirror automatically
+  - Icons that indicate direction (arrows, chevrons) must flip: wrap them with a `scaleX: I18nManager.isRTL ? -1 : 1` transform
 
 ---
 
-### 3-K  Mobile Verification
+### 3-K  Offline Buffering
 
-- [ ] **3-K-1** `npm run typecheck` — zero TypeScript errors
-- [ ] **3-K-2** `npm run start` — Expo dev server starts
-- [ ] **3-K-3** Sign-in with valid driver phone/password → navigates to home
-- [ ] **3-K-4** View trips list → tap a trip → start trip → location updates appear in dashboard map
+- [ ] **3-K-1** In `connectivity.service.ts`: implement `offlineQueue` as array in module scope, persisted to `AsyncStorage` with key `ta_offline_queue`
+- [ ] **3-K-2** On network reconnect: `flushQueue()` → iterate queue, POST each location to `POST /tracking/location`, clear queue on success
+
+---
+
+### 3-L  Mobile Verification
+
+- [ ] **3-L-1** `npm run typecheck` — zero TypeScript errors
+- [ ] **3-L-2** `npm run start` — Expo dev server starts
+- [ ] **3-L-3** Sign-in with valid driver phone/password → navigates to home
+- [ ] **3-L-4** View trips list → tap a trip → start trip → location updates appear in dashboard map
+- [ ] **3-L-5** Open Settings → switch to English → confirm dialog appears → restart app → UI renders in English LTR
+- [ ] **3-L-6** Switch back to Arabic → restart → UI renders in Arabic RTL, all text right-aligned, icons mirrored
 
 ---
 
@@ -906,12 +1121,21 @@ Severity:   LOW | MEDIUM | HIGH | CRITICAL
 - [ ] **4-C-2** Dashboard: interceptor catches 401, calls `/auth/refresh`, retries original request — tested manually
 - [ ] **4-C-3** Mobile: same interceptor logic works on device
 
-### 4-D  Final Build Check
+### 4-D  i18n Completeness Check
 
-- [ ] **4-D-1** `cd backend-trans-allal && npm run build` — passes
-- [ ] **4-D-2** `cd dashboard-trans-allal && npm run build` — passes
-- [ ] **4-D-3** `cd app-trans-allal && npm run typecheck` — passes
+- [ ] **4-D-1** Dashboard: `npm run build` emits zero `missing translation key` warnings
+- [ ] **4-D-2** Dashboard: switch to Arabic → every visible string is translated — no English text leaking in RTL mode
+- [ ] **4-D-3** Dashboard: switch to Arabic → sidebar, header, tables, forms, modals, toasts all mirror correctly (no broken layouts)
+- [ ] **4-D-4** Mobile: `npm run typecheck` passes
+- [ ] **4-D-5** Mobile: run in Arabic → all screens show Arabic text, RTL layout, mirrored icons
+- [ ] **4-D-6** Mobile: run in English → all screens show English text, LTR layout
+
+### 4-E  Final Build Check
+
+- [ ] **4-E-1** `cd backend-trans-allal && npm run build` — passes
+- [ ] **4-E-2** `cd dashboard-trans-allal && npm run build` — passes
+- [ ] **4-E-3** `cd app-trans-allal && npm run typecheck` — passes
 
 ---
 
-*Last updated: 2026-04-12 | Version 2.2 — Location Picker + Standalone Fleet Tracking*
+*Last updated: 2026-04-12 | Version 2.3 — Arabic/English i18n + RTL Support*

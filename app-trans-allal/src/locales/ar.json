@@ -1,0 +1,86 @@
+{
+  "common": {
+    "appName": "ترانس الآل",
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "retry": "إعادة المحاولة",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "save": "حفظ",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "back": "رجوع",
+    "close": "إغلاق",
+    "yes": "نعم",
+    "no": "لا"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "phone": "رقم الهاتف",
+    "password": "كلمة المرور",
+    "phonePlaceholder": "05xxxxxxxx",
+    "passwordPlaceholder": "أدخل كلمة المرور",
+    "signingIn": "جاري تسجيل الدخول...",
+    "invalidCredentials": "رقم الهاتف أو كلمة المرور غير صحيحة",
+    "welcomeBack": "مرحباً بعودتك",
+    "subtitle": "سجّل دخولك للمتابعة"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "trip": "الرحلات",
+    "tracking": "التتبع",
+    "profile": "الملف الشخصي"
+  },
+  "home": {
+    "title": "لوحة السائق",
+    "assignedTrip": "الرحلة المعيّنة",
+    "noTrip": "لا توجد رحلة معيّنة حالياً",
+    "status": "الحالة",
+    "online": "متصل",
+    "offline": "غير متصل"
+  },
+  "trip": {
+    "title": "الرحلات",
+    "myTrips": "رحلاتي",
+    "noTrips": "لا توجد رحلات",
+    "status": {
+      "PENDING": "في الانتظار",
+      "IN_PROGRESS": "جارية",
+      "COMPLETED": "مكتملة",
+      "CANCELLED": "ملغاة"
+    },
+    "origin": "نقطة الانطلاق",
+    "destination": "نقطة الوصول",
+    "scheduledAt": "موعد الرحلة",
+    "startTrip": "بدء الرحلة",
+    "completeTrip": "إتمام الرحلة",
+    "truck": "الشاحنة"
+  },
+  "tracking": {
+    "title": "التتبع",
+    "goOnline": "الاتصال والبث",
+    "goOffline": "قطع الاتصال",
+    "broadcasting": "يتم بث موقعك الآن",
+    "offline": "أنت غير متصل حالياً",
+    "locationPermission": "مطلوب إذن الموقع",
+    "permissionDenied": "تم رفض إذن الموقع",
+    "startingSession": "جاري بدء الجلسة...",
+    "stoppingSession": "جاري إنهاء الجلسة..."
+  },
+  "profile": {
+    "title": "الملف الشخصي",
+    "name": "الاسم",
+    "phone": "الهاتف",
+    "license": "رخصة القيادة",
+    "signOut": "تسجيل الخروج"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "language": "اللغة",
+    "arabic": "العربية",
+    "english": "الإنجليزية",
+    "theme": "المظهر",
+    "version": "الإصدار"
+  }
+}

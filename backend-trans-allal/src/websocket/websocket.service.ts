@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { WebsocketEvent } from './websocket.events';
+import { WsEvents } from './websocket.events';
 
 @Injectable()
 export class WebsocketService {
@@ -11,7 +11,7 @@ export class WebsocketService {
       port: this.configService.get<number>('websocket.port') ?? 3002,
       namespace:
         this.configService.get<string>('websocket.namespace') ?? '/tracking',
-      supportedEvents: Object.values(WebsocketEvent),
+      supportedEvents: Object.values(WsEvents),
       status: 'placeholder',
     };
   }

@@ -1,0 +1,86 @@
+{
+  "common": {
+    "appName": "Trans Allal",
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "back": "Back",
+    "close": "Close",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "phone": "Phone Number",
+    "password": "Password",
+    "phonePlaceholder": "05xxxxxxxx",
+    "passwordPlaceholder": "Enter your password",
+    "signingIn": "Signing in...",
+    "invalidCredentials": "Invalid phone number or password",
+    "welcomeBack": "Welcome Back",
+    "subtitle": "Sign in to continue"
+  },
+  "nav": {
+    "home": "Home",
+    "trip": "Trips",
+    "tracking": "Tracking",
+    "profile": "Profile"
+  },
+  "home": {
+    "title": "Driver Dashboard",
+    "assignedTrip": "Assigned Trip",
+    "noTrip": "No trip assigned",
+    "status": "Status",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "trip": {
+    "title": "Trips",
+    "myTrips": "My Trips",
+    "noTrips": "No trips found",
+    "status": {
+      "PENDING": "Pending",
+      "IN_PROGRESS": "In Progress",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "origin": "Origin",
+    "destination": "Destination",
+    "scheduledAt": "Scheduled At",
+    "startTrip": "Start Trip",
+    "completeTrip": "Complete Trip",
+    "truck": "Truck"
+  },
+  "tracking": {
+    "title": "Tracking",
+    "goOnline": "Go Online",
+    "goOffline": "Go Offline",
+    "broadcasting": "Broadcasting your location",
+    "offline": "You are offline",
+    "locationPermission": "Location permission required",
+    "permissionDenied": "Location permission denied",
+    "startingSession": "Starting session...",
+    "stoppingSession": "Stopping session..."
+  },
+  "profile": {
+    "title": "Profile",
+    "name": "Name",
+    "phone": "Phone",
+    "license": "Driver License",
+    "signOut": "Sign Out"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "arabic": "Arabic",
+    "english": "English",
+    "theme": "Theme",
+    "version": "Version"
+  }
+}

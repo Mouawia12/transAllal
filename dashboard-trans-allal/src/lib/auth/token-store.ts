@@ -1,31 +1,20 @@
-import { dashboardRuntimeConfig } from "@/lib/api/config";
+const KEY = process.env.NEXT_PUBLIC_AUTH_STORAGE_KEY ?? 'trans-allal-dashboard-token';
 
-const storageKey = dashboardRuntimeConfig.authStorageKey;
-
-function hasBrowserStorage() {
-  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
-}
-
-export const dashboardTokenStore = {
-  get() {
-    if (!hasBrowserStorage()) {
-      return null;
-    }
-
-    return window.localStorage.getItem(storageKey);
+export const tokenStore = {
+  getAccessToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(`${KEY}:access`);
   },
-  set(token: string) {
-    if (!hasBrowserStorage()) {
-      return;
-    }
-
-    window.localStorage.setItem(storageKey, token);
+  getRefreshToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(`${KEY}:refresh`);
   },
-  clear() {
-    if (!hasBrowserStorage()) {
-      return;
-    }
-
-    window.localStorage.removeItem(storageKey);
+  setTokens(access: string, refresh: string): void {
+    localStorage.setItem(`${KEY}:access`, access);
+    localStorage.setItem(`${KEY}:refresh`, refresh);
+  },
+  clear(): void {
+    localStorage.removeItem(`${KEY}:access`);
+    localStorage.removeItem(`${KEY}:refresh`);
   },
 };
