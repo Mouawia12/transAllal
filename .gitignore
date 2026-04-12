@@ -1,0 +1,26 @@
+# Nested child repositories are managed independently
+/backend-trans-allal/
+/dashboard-trans-allal/
+/app-trans-allal/
+
+# Dependencies
+**/node_modules
+
+# Build output
+**/.next
+**/dist
+**/build
+**/.expo
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.production.local
+
+# System files
+**/.DS_Store
+
+# Common extras
+**/coverage
+*.log
