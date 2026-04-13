@@ -10,30 +10,87 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
+import { Controller, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { useAuthStore } from '@/store/auth.store';
+import { ApiError } from '@/services/api/client';
 import { appColors } from '@/theme/colors';
+
+type SignInFormValues = {
+  phone: string;
+  password: string;
+};
 
 export function SignInScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { login, isLoading } = useAuthStore();
 
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+  const signInSchema = z.object({
+    phone: z
+      .string()
+      .trim()
+      .min(1, t('auth.phoneRequired'))
+      .regex(/^[0-9+\-\s]{8,20}$/, t('auth.phoneInvalid')),
+    password: z
+      .string()
+      .min(1, t('auth.passwordRequired'))
+      .min(6, t('auth.passwordMin')),
+  });
 
-  async function handleSignIn() {
-    if (!phone.trim() || !password.trim()) {
-      Alert.alert(t('common.error'), t('auth.invalidCredentials'));
-      return;
+  const {
+    control,
+    handleSubmit,
+    clearErrors,
+    formState: { errors },
+  } = useForm<SignInFormValues>({
+    resolver: zodResolver(signInSchema),
+    defaultValues: {
+      phone: '',
+      password: '',
+    },
+  });
+
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function resolveErrorMessage(error: unknown): string {
+    if (error instanceof ApiError) {
+      if (error.code === 'VALIDATION_ERROR') {
+        return t('auth.validationSummary');
+      }
+
+      if (error.status === 401) {
+        return t('auth.invalidCredentials');
+      }
+
+      return error.message || t('auth.unexpectedError');
     }
+
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return t('auth.unexpectedError');
+  }
+
+  async function handleValidSignIn(values: SignInFormValues) {
+    setFormError(null);
     try {
-      await login(phone.trim(), password);
+      await login(values.phone.trim(), values.password);
       router.replace('/(driver)/(tabs)');
-    } catch {
-      Alert.alert(t('common.error'), t('auth.invalidCredentials'));
+    } catch (error) {
+      const message = resolveErrorMessage(error);
+      setFormError(message);
+      Alert.alert(t('common.error'), message);
     }
+  }
+
+  function handleInvalidSignIn() {
+    setFormError(null);
+    Alert.alert(t('auth.validationTitle'), t('auth.validationSummary'));
   }
 
   return (
@@ -48,32 +105,66 @@ export function SignInScreen() {
 
         <View style={styles.field}>
           <Text style={styles.label}>{t('auth.phone')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('auth.phonePlaceholder')}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            textAlign="right"
+          <Controller
+            control={control}
+            name="phone"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={[styles.input, errors.phone && styles.inputError]}
+                placeholder={t('auth.phonePlaceholder')}
+                value={value}
+                onBlur={onBlur}
+                onChangeText={(nextValue) => {
+                  clearErrors('phone');
+                  setFormError(null);
+                  onChange(nextValue);
+                }}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                textAlign="right"
+              />
+            )}
           />
+          {errors.phone?.message ? (
+            <Text style={styles.fieldError}>{errors.phone.message}</Text>
+          ) : null}
         </View>
 
         <View style={styles.field}>
           <Text style={styles.label}>{t('auth.password')}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={t('auth.passwordPlaceholder')}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            textAlign="right"
+          <Controller
+            control={control}
+            name="password"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={[styles.input, errors.password && styles.inputError]}
+                placeholder={t('auth.passwordPlaceholder')}
+                value={value}
+                onBlur={onBlur}
+                onChangeText={(nextValue) => {
+                  clearErrors('password');
+                  setFormError(null);
+                  onChange(nextValue);
+                }}
+                secureTextEntry
+                textAlign="right"
+              />
+            )}
           />
+          {errors.password?.message ? (
+            <Text style={styles.fieldError}>{errors.password.message}</Text>
+          ) : null}
         </View>
+
+        {formError ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{formError}</Text>
+          </View>
+        ) : null}
 
         <Pressable
           style={[styles.button, isLoading && styles.buttonDisabled]}
-          onPress={handleSignIn}
+          onPress={handleSubmit(handleValidSignIn, handleInvalidSignIn)}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -145,6 +236,29 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: appColors.light.text,
+  },
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  fieldError: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#b91c1c',
+    textAlign: 'right',
+  },
+  errorBanner: {
+    marginBottom: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  errorBannerText: {
+    color: '#b91c1c',
+    fontSize: 13,
+    textAlign: 'right',
   },
   button: {
     backgroundColor: appColors.light.primary,

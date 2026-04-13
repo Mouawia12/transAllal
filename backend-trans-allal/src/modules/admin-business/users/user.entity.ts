@@ -15,14 +15,14 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'company_id', nullable: true })
+  @Column({ name: 'company_id', type: 'char', length: 36, nullable: true })
   companyId: string | null;
 
   @ManyToOne(() => Company, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @Column({ length: 150, unique: true, nullable: true })
+  @Column({ type: 'varchar', length: 150, unique: true, nullable: true })
   email: string | null;
 
   @Column({ select: false })
@@ -40,7 +40,7 @@ export class User {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
-  @Column({ name: 'last_login_at', nullable: true })
+  @Column({ name: 'last_login_at', type: 'timestamp', nullable: true })
   lastLoginAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })

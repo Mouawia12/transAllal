@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { paginatedResponse } from '../../../common/interfaces/api-response.interface';
 import { Company } from './company.entity';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -9,19 +9,26 @@ import { UpdateCompanyDto } from './dto/update-company.dto';
 
 @Injectable()
 export class CompaniesService {
-  constructor(@InjectRepository(Company) private readonly repo: Repository<Company>) {}
+  constructor(
+    @InjectRepository(Company) private readonly repo: Repository<Company>,
+  ) {}
 
   async findAll(query: QueryCompanyDto) {
     const { page, limit, isActive, search } = query;
-    const where: Record<string, unknown> = {};
-    if (isActive !== undefined) where['isActive'] = isActive;
-    if (search) where['name'] = ILike(`%${search}%`);
-    const [data, total] = await this.repo.findAndCount({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    const qb = this.repo.createQueryBuilder('company');
+    if (isActive !== undefined) {
+      qb.andWhere('company.isActive = :isActive', { isActive });
+    }
+    if (search) {
+      qb.andWhere('LOWER(company.name) LIKE :search', {
+        search: `%${search.toLowerCase()}%`,
+      });
+    }
+    const [data, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('company.createdAt', 'DESC')
+      .getManyAndCount();
     return paginatedResponse(data, total, page, limit);
   }
 

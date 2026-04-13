@@ -24,14 +24,14 @@ export class Trip {
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @Column({ name: 'driver_id', nullable: true })
+  @Column({ name: 'driver_id', type: 'char', length: 36, nullable: true })
   driverId: string | null;
 
   @ManyToOne(() => Driver, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'driver_id' })
   driver: Driver | null;
 
-  @Column({ name: 'truck_id', nullable: true })
+  @Column({ name: 'truck_id', type: 'char', length: 36, nullable: true })
   truckId: string | null;
 
   @ManyToOne(() => Truck, { nullable: true, onDelete: 'SET NULL' })
@@ -44,25 +44,49 @@ export class Trip {
   @Column({ length: 255 })
   destination: string;
 
-  @Column({ name: 'origin_lat', type: 'numeric', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'origin_lat',
+    type: 'numeric',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   originLat: number | null;
 
-  @Column({ name: 'origin_lng', type: 'numeric', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'origin_lng',
+    type: 'numeric',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   originLng: number | null;
 
-  @Column({ name: 'destination_lat', type: 'numeric', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'destination_lat',
+    type: 'numeric',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   destinationLat: number | null;
 
-  @Column({ name: 'destination_lng', type: 'numeric', precision: 10, scale: 7, nullable: true })
+  @Column({
+    name: 'destination_lng',
+    type: 'numeric',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+  })
   destinationLng: number | null;
 
-  @Column({ name: 'scheduled_at', type: 'timestamptz' })
+  @Column({ name: 'scheduled_at', type: 'timestamp' })
   scheduledAt: Date;
 
-  @Column({ name: 'started_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'started_at', type: 'timestamp', nullable: true })
   startedAt: Date | null;
 
-  @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'completed_at', type: 'timestamp', nullable: true })
   completedAt: Date | null;
 
   @Column({ type: 'varchar', length: 30, default: TripStatus.PENDING })

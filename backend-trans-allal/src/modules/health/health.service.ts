@@ -18,13 +18,14 @@ export class HealthService {
       this.configService.get<string>('app.url') ?? 'http://localhost:3000';
     const apiPrefix =
       this.configService.get<string>('app.apiPrefix') ?? DEFAULT_API_PREFIX;
-    const wsPort = this.configService.get<number>('websocket.port') ?? 3002;
     const wsNamespace =
       this.configService.get<string>('websocket.namespace') ?? '/tracking';
+    const appOrigin = new URL(appUrl);
+    const websocketProtocol = appOrigin.protocol === 'https:' ? 'wss:' : 'ws:';
 
     const communication: ServiceCommunicationContract = {
       apiBaseUrl: `${appUrl}/${apiPrefix}`,
-      websocketUrl: `ws://localhost:${wsPort}${wsNamespace}`,
+      websocketUrl: `${websocketProtocol}//${appOrigin.host}${wsNamespace}`,
     };
 
     return {

@@ -23,14 +23,14 @@ export class Alert {
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @Column({ name: 'driver_id', nullable: true })
+  @Column({ name: 'driver_id', type: 'char', length: 36, nullable: true })
   driverId: string | null;
 
   @ManyToOne(() => Driver, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'driver_id' })
   driver: Driver | null;
 
-  @Column({ name: 'trip_id', nullable: true })
+  @Column({ name: 'trip_id', type: 'char', length: 36, nullable: true })
   tripId: string | null;
 
   @ManyToOne(() => Trip, { nullable: true, onDelete: 'SET NULL' })

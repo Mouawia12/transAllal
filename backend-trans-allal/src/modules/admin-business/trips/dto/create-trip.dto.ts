@@ -1,7 +1,14 @@
-import { IsDateString, IsNumber, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateTripDto {
-  @IsUUID() companyId: string;
+  @IsOptional() @IsUUID() companyId?: string;
   @IsOptional() @IsUUID() driverId?: string;
   @IsOptional() @IsUUID() truckId?: string;
   @IsString() @MaxLength(255) origin: string;

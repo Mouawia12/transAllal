@@ -14,13 +14,19 @@ export class Company {
   @Column({ length: 200 })
   name: string;
 
-  @Column({ name: 'tax_id', length: 50, unique: true, nullable: true })
+  @Column({
+    name: 'tax_id',
+    type: 'varchar',
+    length: 50,
+    unique: true,
+    nullable: true,
+  })
   taxId: string | null;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;
 
-  @Column({ length: 150, unique: true, nullable: true })
+  @Column({ type: 'varchar', length: 150, unique: true, nullable: true })
   email: string | null;
 
   @Column({ type: 'text', nullable: true })

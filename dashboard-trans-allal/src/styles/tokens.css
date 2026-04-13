@@ -1,10 +1,18 @@
 :root {
   --color-canvas: #f4efe7;
   --color-panel: rgba(255, 255, 255, 0.76);
+  --color-panel-strong: rgba(255, 255, 255, 0.88);
+  --color-panel-muted: rgba(255, 255, 255, 0.62);
   --color-ink: #17120e;
   --color-muted: #62584d;
   --color-brand: #0c6b58;
+  --color-brand-deep: #083d35;
   --color-accent: #c95f3a;
   --color-border: rgba(23, 18, 14, 0.1);
   --shadow-panel: 0 24px 60px rgba(23, 18, 14, 0.12);
+  --shadow-elevated: 0 32px 100px rgba(23, 18, 14, 0.18);
+  --font-display:
+    "Avenir Next", "SF Pro Display", "Segoe UI", "Helvetica Neue", sans-serif;
+  --font-mono:
+    "SFMono-Regular", "Cascadia Code", "JetBrains Mono", "Menlo", monospace;
 }

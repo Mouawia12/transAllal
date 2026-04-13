@@ -4,10 +4,60 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+  skipAuthRefresh?: boolean;
+  skipUnauthorizedRedirect?: boolean;
+}
+
+interface ApiErrorResponse {
+  error?: {
+    code?: string;
+    message?: string;
+    details?: unknown;
+  };
+}
+
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+function redirectToSignIn(): void {
+  if (typeof window !== 'undefined') {
+    window.location.href = '/sign-in';
+  }
+}
+
+async function parseApiError(response: Response): Promise<ApiError> {
+  const fallbackMessage = `HTTP ${response.status}`;
+
+  try {
+    const body = (await response.json()) as ApiErrorResponse;
+    return new ApiError(
+      response.status,
+      body.error?.code ?? String(response.status),
+      body.error?.message ?? fallbackMessage,
+      body.error?.details,
+    );
+  } catch {
+    return new ApiError(response.status, String(response.status), fallbackMessage);
+  }
 }
 
 async function request<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { params, headers = {}, ...rest } = options;
+  const {
+    params,
+    headers = {},
+    skipAuthRefresh = false,
+    skipUnauthorizedRedirect = false,
+    ...rest
+  } = options;
   const url = new URL(`${BASE_URL}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
@@ -24,7 +74,7 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
 
   const res = await fetch(url.toString(), { ...rest, headers: mergedHeaders });
 
-  if (res.status === 401) {
+  if (res.status === 401 && !skipAuthRefresh) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       const newToken = tokenStore.getAccessToken();
@@ -32,19 +82,18 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
       const retry = await fetch(url.toString(), { ...rest, headers: mergedHeaders });
       if (!retry.ok) {
         tokenStore.clear();
-        if (typeof window !== 'undefined') window.location.href = '/sign-in';
-        throw new Error('Session expired');
+        if (!skipUnauthorizedRedirect) redirectToSignIn();
+        throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
       }
       return retry.json() as Promise<T>;
     }
     tokenStore.clear();
-    if (typeof window !== 'undefined') window.location.href = '/sign-in';
-    throw new Error('Unauthorized');
+    if (!skipUnauthorizedRedirect) redirectToSignIn();
+    throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: { message?: string } }).error?.message ?? `HTTP ${res.status}`);
+    throw await parseApiError(res);
   }
 
   return res.json() as Promise<T>;
@@ -69,12 +118,24 @@ async function tryRefresh(): Promise<boolean> {
 }
 
 export const apiClient = {
-  get: <T>(path: string, params?: Record<string, string | number | boolean | undefined>) =>
-    request<T>(path, { method: 'GET', params }),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
-  patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
-  delete: <T>(path: string) =>
-    request<T>(path, { method: 'DELETE' }),
+  get: <T>(
+    path: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    options?: Omit<FetchOptions, 'method' | 'params'>,
+  ) =>
+    request<T>(path, { method: 'GET', params, ...options }),
+  post: <T>(
+    path: string,
+    body?: unknown,
+    options?: Omit<FetchOptions, 'method' | 'body'>,
+  ) =>
+    request<T>(path, { method: 'POST', body: JSON.stringify(body), ...options }),
+  patch: <T>(
+    path: string,
+    body?: unknown,
+    options?: Omit<FetchOptions, 'method' | 'body'>,
+  ) =>
+    request<T>(path, { method: 'PATCH', body: JSON.stringify(body), ...options }),
+  delete: <T>(path: string, options?: Omit<FetchOptions, 'method'>) =>
+    request<T>(path, { method: 'DELETE', ...options }),
 };

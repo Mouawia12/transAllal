@@ -37,8 +37,9 @@ export class AuthService {
   ) {}
 
   async loginUser(email: string, password: string): Promise<TokenPair & { user: Omit<User, 'password'> }> {
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await this.userRepo.findOne({
-      where: { email, isActive: true },
+      where: { email: normalizedEmail, isActive: true },
       select: ['id', 'email', 'password', 'firstName', 'lastName', 'role', 'companyId', 'isActive'],
     });
     if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -53,8 +54,9 @@ export class AuthService {
   }
 
   async loginDriver(phone: string, password: string): Promise<TokenPair & { user: Omit<User, 'password'>; driver: Driver }> {
+    const normalizedPhone = phone.trim();
     const driver = await this.driverRepo.findOne({
-      where: { phone, isActive: true },
+      where: { phone: normalizedPhone, isActive: true },
       relations: ['user'],
     });
     if (!driver) throw new UnauthorizedException('Invalid credentials');

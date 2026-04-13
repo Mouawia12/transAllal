@@ -20,7 +20,7 @@ export class DriverLocation {
   @JoinColumn({ name: 'driver_id' })
   driver: Driver;
 
-  @Column({ name: 'trip_id', nullable: true })
+  @Column({ name: 'trip_id', type: 'char', length: 36, nullable: true })
   tripId: string | null;
 
   @ManyToOne(() => Trip, { nullable: true, onDelete: 'SET NULL' })
@@ -33,15 +33,31 @@ export class DriverLocation {
   @Column({ type: 'numeric', precision: 10, scale: 7 })
   lng: number;
 
-  @Column({ name: 'speed_kmh', type: 'numeric', precision: 5, scale: 1, nullable: true })
+  @Column({
+    name: 'speed_kmh',
+    type: 'numeric',
+    precision: 5,
+    scale: 1,
+    nullable: true,
+  })
   speedKmh: number | null;
 
   @Column({ type: 'smallint', nullable: true })
   heading: number | null;
 
-  @Column({ name: 'accuracy_m', type: 'numeric', precision: 6, scale: 1, nullable: true })
+  @Column({
+    name: 'accuracy_m',
+    type: 'numeric',
+    precision: 6,
+    scale: 1,
+    nullable: true,
+  })
   accuracyM: number | null;
 
-  @Column({ name: 'recorded_at', type: 'timestamptz', default: () => 'NOW()' })
+  @Column({
+    name: 'recorded_at',
+    type: 'timestamp',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   recordedAt: Date;
 }

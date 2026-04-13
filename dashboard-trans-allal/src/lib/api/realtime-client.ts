@@ -1,6 +1,13 @@
-import { io, type Socket } from 'socket.io-client';
+import { io, type Socket } from "socket.io-client";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:3002';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3000";
+const TRACKING_NAMESPACE = "/tracking";
+
+function resolveTrackingUrl(baseUrl: string): string {
+  return baseUrl.endsWith(TRACKING_NAMESPACE)
+    ? baseUrl
+    : `${baseUrl}${TRACKING_NAMESPACE}`;
+}
 
 type LocationUpdate = {
   driverId: string;
@@ -32,34 +39,42 @@ class RealtimeClient {
 
   connect(token: string): void {
     if (this.socket?.connected) return;
-    this.socket = io(`${WS_URL}/tracking`, {
+    this.socket = io(resolveTrackingUrl(WS_URL), {
       auth: { token },
-      transports: ['websocket'],
+      transports: ["websocket"],
     });
   }
 
   subscribeToCompany(companyId: string): void {
-    this.socket?.emit('company.subscribe', { companyId });
+    this.socket?.emit("company.subscribe", { companyId });
   }
 
   subscribeToDriver(driverId: string): void {
-    this.socket?.emit('driver.subscribe', { driverId });
+    this.socket?.emit("driver.subscribe", { driverId });
   }
 
   onDriverLocation(cb: (data: LocationUpdate) => void): void {
-    this.socket?.on('driver.location.updated', cb);
+    this.socket?.on("driver.location.updated", cb);
+  }
+
+  offDriverLocation(cb?: (data: LocationUpdate) => void): void {
+    this.socket?.off("driver.location.updated", cb);
   }
 
   onAlert(cb: (data: AlertEvent) => void): void {
-    this.socket?.on('alert.raised', cb);
+    this.socket?.on("alert.raised", cb);
+  }
+
+  offAlert(cb?: (data: AlertEvent) => void): void {
+    this.socket?.off("alert.raised", cb);
   }
 
   onOnlineChanged(cb: (data: OnlineChangedEvent) => void): void {
-    this.socket?.on('driver.online.changed', cb);
+    this.socket?.on("driver.online.changed", cb);
   }
 
-  off(event: string, cb?: (...args: unknown[]) => void): void {
-    this.socket?.off(event, cb);
+  offOnlineChanged(cb?: (data: OnlineChangedEvent) => void): void {
+    this.socket?.off("driver.online.changed", cb);
   }
 
   disconnect(): void {

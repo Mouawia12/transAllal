@@ -51,7 +51,7 @@ export class Driver {
   @Column({ name: 'is_online', default: false })
   isOnline: boolean;
 
-  @Column({ name: 'last_seen_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'last_seen_at', type: 'timestamp', nullable: true })
   lastSeenAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })

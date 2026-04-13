@@ -5,6 +5,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { DEFAULT_API_PREFIX } from './common/constants/app.constants';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { SuccessResponseInterceptor } from './common/interceptors/success-response.interceptor';
 import { parseCorsOrigins } from './common/utils/cors.util';
 
 export async function createApplication(): Promise<NestExpressApplication> {
@@ -34,6 +35,7 @@ export async function createApplication(): Promise<NestExpressApplication> {
       },
     }),
   );
+  app.useGlobalInterceptors(new SuccessResponseInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableShutdownHooks();
 

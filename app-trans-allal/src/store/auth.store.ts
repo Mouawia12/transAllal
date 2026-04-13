@@ -3,6 +3,51 @@ import { tokenStorage } from '@/services/storage/token-storage';
 import { apiClient } from '@/services/api/client';
 import type { CurrentUser } from '@/types/api';
 
+interface AuthUserPayload {
+  id: string;
+  email: string | null;
+  firstName: string;
+  lastName: string;
+  role: string;
+  companyId: string | null;
+}
+
+interface AuthDriverPayload {
+  id: string;
+  phone: string;
+}
+
+interface AuthSessionPayload {
+  accessToken: string;
+  refreshToken: string;
+  user: AuthUserPayload;
+  driver: AuthDriverPayload | null;
+}
+
+interface AuthMePayload {
+  user: AuthUserPayload;
+  driver: AuthDriverPayload | null;
+}
+
+function normalizeCurrentUser(payload: AuthMePayload | AuthSessionPayload): CurrentUser {
+  const name = [payload.user.firstName, payload.user.lastName]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  return {
+    id: payload.user.id,
+    email: payload.user.email,
+    firstName: payload.user.firstName,
+    lastName: payload.user.lastName,
+    name,
+    phone: payload.driver?.phone ?? '',
+    role: payload.user.role,
+    companyId: payload.user.companyId,
+    driverId: payload.driver?.id ?? null,
+  };
+}
+
 interface AuthState {
   user: CurrentUser | null;
   accessToken: string | null;
@@ -27,8 +72,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
     try {
-      const user = await apiClient<CurrentUser>('/auth/me', {}, { token });
-      set({ user, accessToken: token, isHydrated: true });
+      const data = await apiClient<AuthMePayload>('/auth/me', {}, { token });
+      set({ user: normalizeCurrentUser(data), accessToken: token, isHydrated: true });
     } catch {
       await tokenStorage.clearAll();
       set({ user: null, accessToken: null, isHydrated: true });
@@ -38,18 +83,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (phone: string, password: string) => {
     set({ isLoading: true });
     try {
-      const data = await apiClient<{
-        accessToken: string;
-        refreshToken: string;
-        user: CurrentUser;
-      }>('/auth/driver/login', {
+      const data = await apiClient<AuthSessionPayload>('/auth/driver/login', {
         method: 'POST',
         body: JSON.stringify({ phone, password }),
       }, { skipRefresh: true });
 
       await tokenStorage.setAccess(data.accessToken);
       await tokenStorage.setRefresh(data.refreshToken);
-      set({ user: data.user, accessToken: data.accessToken });
+      set({ user: normalizeCurrentUser(data), accessToken: data.accessToken });
     } finally {
       set({ isLoading: false });
     }
@@ -57,9 +98,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     const token = get().accessToken;
+    const refreshToken = await tokenStorage.getRefresh();
     try {
-      if (token) {
-        await apiClient('/auth/logout', { method: 'POST' }, { token });
+      if (token && refreshToken) {
+        await apiClient(
+          '/auth/logout',
+          {
+            method: 'POST',
+            body: JSON.stringify({ refreshToken }),
+          },
+          { token },
+        );
       }
     } catch {}
     await tokenStorage.clearAll();

@@ -24,16 +24,22 @@ export class Truck {
   @Column({ name: 'plate_number', length: 30, unique: true })
   plateNumber: string;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   brand: string | null;
 
-  @Column({ length: 100, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
   model: string | null;
 
   @Column({ type: 'smallint', nullable: true })
   year: number | null;
 
-  @Column({ name: 'capacity_tons', type: 'numeric', precision: 8, scale: 2, nullable: true })
+  @Column({
+    name: 'capacity_tons',
+    type: 'numeric',
+    precision: 8,
+    scale: 2,
+    nullable: true,
+  })
   capacityTons: number | null;
 
   @Column({ name: 'is_active', default: true })

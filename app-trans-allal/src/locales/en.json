@@ -23,6 +23,13 @@
     "passwordPlaceholder": "Enter your password",
     "signingIn": "Signing in...",
     "invalidCredentials": "Invalid phone number or password",
+    "validationTitle": "Check the required fields",
+    "validationSummary": "Enter a valid phone number and a password with at least 6 characters",
+    "phoneRequired": "Phone number is required",
+    "phoneInvalid": "Enter a valid phone number",
+    "passwordRequired": "Password is required",
+    "passwordMin": "Password must be at least 6 characters",
+    "unexpectedError": "Unable to sign in. Please try again.",
     "welcomeBack": "Welcome Back",
     "subtitle": "Sign in to continue"
   },

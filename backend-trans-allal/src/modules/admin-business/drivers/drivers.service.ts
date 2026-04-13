@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Role } from '../../../common/enums/role.enum';
 import { paginatedResponse } from '../../../common/interfaces/api-response.interface';
 import { User } from '../users/user.entity';
@@ -15,57 +15,85 @@ export class DriversService {
   constructor(
     @InjectRepository(Driver) private readonly repo: Repository<Driver>,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
   async findAll(query: QueryDriverDto) {
     const { page, limit, companyId, isActive, search } = query;
-    const qb = this.repo.createQueryBuilder('d').leftJoinAndSelect('d.company', 'company');
+    const qb = this.repo
+      .createQueryBuilder('d')
+      .leftJoinAndSelect('d.company', 'company');
     if (companyId) qb.andWhere('d.companyId = :companyId', { companyId });
-    if (isActive !== undefined) qb.andWhere('d.isActive = :isActive', { isActive });
-    if (search) qb.andWhere('(d.firstName ILIKE :s OR d.lastName ILIKE :s OR d.phone ILIKE :s)', { s: `%${search}%` });
-    const [data, total] = await qb.skip((page - 1) * limit).take(limit).orderBy('d.createdAt', 'DESC').getManyAndCount();
+    if (isActive !== undefined)
+      qb.andWhere('d.isActive = :isActive', { isActive });
+    if (search) {
+      qb.andWhere(
+        '(LOWER(d.firstName) LIKE :search OR LOWER(d.lastName) LIKE :search OR LOWER(d.phone) LIKE :search)',
+        { search: `%${search.toLowerCase()}%` },
+      );
+    }
+    const [data, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('d.createdAt', 'DESC')
+      .getManyAndCount();
     return paginatedResponse(data, total, page, limit);
   }
 
-  async findOne(id: string): Promise<Driver> {
-    const driver = await this.repo.findOne({ where: { id }, relations: ['company'] });
+  async findOne(id: string, companyId?: string): Promise<Driver> {
+    const driver = await this.repo.findOne({
+      where: { id, ...(companyId ? { companyId } : {}) },
+      relations: ['company'],
+    });
     if (!driver) throw new NotFoundException(`Driver ${id} not found`);
     return driver;
   }
 
-  async create(dto: CreateDriverDto): Promise<{ driver: Driver; temporaryPassword?: string }> {
+  async create(
+    dto: CreateDriverDto,
+  ): Promise<{ driver: Driver; temporaryPassword?: string }> {
     const rawPassword = dto.initialPassword ?? this.generatePassword();
     const hashedPassword = await bcrypt.hash(rawPassword, 10);
+    const driverId = await this.dataSource.transaction(async (manager) => {
+      const user = await manager.getRepository(User).save(
+        manager.getRepository(User).create({
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: null,
+          password: hashedPassword,
+          role: Role.DRIVER,
+          companyId: dto.companyId,
+          isActive: true,
+        }),
+      );
 
-    const user = await this.userRepo.save(
-      this.userRepo.create({
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        email: null,
-        password: hashedPassword,
-        role: Role.DRIVER,
-        companyId: dto.companyId,
-        isActive: true,
-      }),
-    );
+      const driver = await manager.getRepository(Driver).save(
+        manager.getRepository(Driver).create({
+          companyId: dto.companyId,
+          userId: user.id,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone: dto.phone,
+          licenseNumber: dto.licenseNumber,
+          licenseExpiry: dto.licenseExpiry,
+        }),
+      );
 
-    const driver = await this.repo.save(
-      this.repo.create({
-        companyId: dto.companyId,
-        userId: user.id,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        phone: dto.phone,
-        licenseNumber: dto.licenseNumber,
-        licenseExpiry: dto.licenseExpiry,
-      }),
-    );
-
-    return { driver, temporaryPassword: dto.initialPassword ? undefined : rawPassword };
+      return driver.id;
+    });
+    const driver = await this.findOne(driverId);
+    return {
+      driver,
+      temporaryPassword: dto.initialPassword ? undefined : rawPassword,
+    };
   }
 
-  async update(id: string, dto: UpdateDriverDto): Promise<Driver> {
-    const driver = await this.findOne(id);
+  async update(
+    id: string,
+    dto: UpdateDriverDto,
+    companyId?: string,
+  ): Promise<Driver> {
+    const driver = await this.findOne(id, companyId);
     Object.assign(driver, dto);
     await this.repo.save(driver);
     if (dto.firstName || dto.lastName || dto.isActive !== undefined) {
@@ -75,16 +103,19 @@ export class DriversService {
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
       });
     }
-    return this.findOne(id);
+    return this.findOne(id, companyId);
   }
 
-  async softDelete(id: string): Promise<void> {
-    const driver = await this.findOne(id);
+  async softDelete(id: string, companyId?: string): Promise<void> {
+    const driver = await this.findOne(id, companyId);
     await this.repo.update(id, { isActive: false });
     await this.userRepo.update(driver.userId, { isActive: false });
   }
 
   private generatePassword(): string {
-    return Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase();
+    return (
+      Math.random().toString(36).slice(-8) +
+      Math.random().toString(36).slice(-8).toUpperCase()
+    );
   }
 }

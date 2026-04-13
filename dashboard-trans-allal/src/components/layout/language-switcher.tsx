@@ -1,5 +1,6 @@
 'use client';
 
+import { Languages } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 
@@ -16,8 +17,9 @@ export function LanguageSwitcher() {
   return (
     <button
       onClick={toggle}
-      className="px-3 py-1 text-sm rounded border border-gray-300 hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
+      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-white/70 px-3.5 py-2.5 text-sm font-medium text-[var(--color-ink)] shadow-sm transition-colors hover:bg-white"
     >
+      <Languages size={16} className="text-[var(--color-brand)]" />
       {locale === 'ar' ? 'English' : 'العربية'}
     </button>
   );

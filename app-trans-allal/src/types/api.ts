@@ -19,11 +19,14 @@ export type TripStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 export interface CurrentUser {
   id: string;
+  email: string | null;
+  firstName: string;
+  lastName: string;
   name: string;
   phone: string;
   role: string;
-  companyId: string;
-  driverId: string;
+  companyId: string | null;
+  driverId: string | null;
 }
 
 export interface Trip {

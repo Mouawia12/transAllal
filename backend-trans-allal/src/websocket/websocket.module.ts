@@ -1,14 +1,14 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { AlertsModule } from '../modules/telemetry/alerts/alerts.module';
 import { TrackingModule } from '../modules/telemetry/tracking/tracking.module';
 import { TrackingGateway } from './tracking.gateway';
+import { WebsocketService } from './websocket.service';
 
+@Global()
 @Module({
   imports: [
     TrackingModule,
-    AlertsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -16,7 +16,7 @@ import { TrackingGateway } from './tracking.gateway';
       }),
     }),
   ],
-  providers: [TrackingGateway],
-  exports: [TrackingGateway],
+  providers: [TrackingGateway, WebsocketService],
+  exports: [TrackingGateway, WebsocketService],
 })
 export class WebsocketModule {}
