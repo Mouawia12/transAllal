@@ -24,12 +24,11 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   if (!token) return;
 
   const payload = {
-    latitude: location.coords.latitude,
-    longitude: location.coords.longitude,
-    speed: location.coords.speed ?? 0,
-    heading: location.coords.heading ?? 0,
-    accuracy: location.coords.accuracy ?? 0,
-    timestamp: new Date(location.timestamp).toISOString(),
+    lat: location.coords.latitude,
+    lng: location.coords.longitude,
+    speedKmh: location.coords.speed != null ? location.coords.speed * 3.6 : undefined,
+    heading: location.coords.heading ?? undefined,
+    accuracyM: location.coords.accuracy ?? undefined,
   };
 
   try {

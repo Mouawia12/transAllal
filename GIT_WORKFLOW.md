@@ -2,10 +2,10 @@
 
 ## Daily Workflow
 
-1. Run `./status-all.sh` to inspect the root repo and the three child repos.
-2. Work inside the repo you need.
+1. Run `./status-all.sh` to inspect the root workspace repository.
+2. Work anywhere inside the workspace.
 3. When you need the latest remote state, run `./pull-all.sh`.
-4. When you are ready to publish all local changes, run `./push-all.sh "your commit message"`.
+4. When you are ready to publish local changes, run `./push-all.sh "your commit message"`.
 
 ## Check Status
 
@@ -15,22 +15,19 @@
 
 This prints the status of:
 
-- root workspace repo
-- `backend-trans-allal`
-- `dashboard-trans-allal`
-- `app-trans-allal`
+- the root workspace repository
 
 ## Push All Repositories
 
 ```bash
 ./push-all.sh
-./push-all.sh "chore: update backend dashboard and mobile"
+./push-all.sh "chore: update workspace"
 ```
 
 If you do not pass a message, the default message is:
 
 ```text
-update all repositories
+update workspace repository
 ```
 
 ## Pull All Repositories
@@ -39,15 +36,9 @@ update all repositories
 ./pull-all.sh
 ```
 
-This runs `git pull origin main` for each repository in order.
+This runs `git pull origin main` for the root workspace repository.
 
 ## Important Note
 
-Each project is an independent Git repository:
-
-- root workspace repo
-- `backend-trans-allal`
-- `dashboard-trans-allal`
-- `app-trans-allal`
-
-Do not treat this workspace as a monorepo and do not use submodules for these projects.
+The workspace now uses a single Git repository at the root.
+The folders `backend-trans-allal`, `dashboard-trans-allal`, and `app-trans-allal` are regular directories inside that repository.

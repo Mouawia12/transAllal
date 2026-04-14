@@ -42,37 +42,37 @@ const navItems: NavItem[] = [
     key: "drivers",
     href: "/drivers",
     icon: Users,
-    roles: ["COMPANY_ADMIN", "DISPATCHER"],
+    roles: ["SUPER_ADMIN", "COMPANY_ADMIN", "DISPATCHER"],
   },
   {
     key: "trucks",
     href: "/trucks",
     icon: Truck,
-    roles: ["COMPANY_ADMIN", "DISPATCHER"],
+    roles: ["SUPER_ADMIN", "COMPANY_ADMIN", "DISPATCHER"],
   },
   {
     key: "trips",
     href: "/trips",
     icon: Route,
-    roles: ["COMPANY_ADMIN", "DISPATCHER"],
+    roles: ["SUPER_ADMIN", "COMPANY_ADMIN", "DISPATCHER"],
   },
   {
     key: "tracking",
     href: "/tracking",
     icon: MapPin,
-    roles: ["COMPANY_ADMIN", "DISPATCHER"],
+    roles: ["SUPER_ADMIN", "COMPANY_ADMIN", "DISPATCHER"],
   },
   {
     key: "alerts",
     href: "/alerts",
     icon: AlertTriangle,
-    roles: ["COMPANY_ADMIN", "DISPATCHER"],
+    roles: ["SUPER_ADMIN", "COMPANY_ADMIN", "DISPATCHER"],
   },
   {
     key: "reports",
     href: "/reports",
     icon: BarChart3,
-    roles: ["COMPANY_ADMIN", "DISPATCHER"],
+    roles: ["SUPER_ADMIN", "COMPANY_ADMIN", "DISPATCHER"],
   },
   {
     key: "settings",
@@ -94,39 +94,39 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="relative flex min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,#101d21_0%,#10312f_55%,#0d2626_100%)] text-white shadow-[var(--shadow-elevated)]">
+    <aside className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#101d21_0%,#10312f_55%,#0d2626_100%)] text-white shadow-[var(--shadow-elevated)] lg:sticky lg:top-3 lg:max-h-[calc(100dvh-1.5rem)] lg:rounded-[30px]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_38%)]" />
 
-      <div className="relative flex h-full flex-col p-4">
-        <div className="rounded-[24px] border border-white/10 bg-white/8 p-4">
+      <div className="relative flex h-full flex-col p-3 lg:p-3.5">
+        <div className="rounded-[22px] border border-white/10 bg-white/8 p-3 lg:rounded-[24px] lg:p-3.5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">
             {t("dashboard_shell.sidebar_eyebrow")}
           </p>
-          <div className="mt-3 flex items-start justify-between gap-3">
+          <div className="mt-2 flex items-start justify-between gap-3 lg:mt-2.5">
             <div className="min-w-0">
-              <h2 className="text-2xl font-semibold tracking-tight text-white">
+              <h2 className="text-[1.45rem] font-semibold tracking-tight text-white lg:text-[1.65rem]">
                 Trans Allal
               </h2>
-              <p className="mt-1 text-sm leading-6 text-white/65">
+              <p className="mt-1 hidden line-clamp-2 text-sm leading-6 text-white/65 sm:block">
                 {t("dashboard_shell.sidebar_summary")}
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-3">
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-2 lg:p-2.5">
               <LayoutDashboard className="h-5 w-5 text-white" />
             </div>
           </div>
           {role ? (
-            <div className="mt-4 inline-flex rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-medium text-emerald-100">
+            <div className="mt-2.5 inline-flex rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-medium text-emerald-100 lg:mt-3">
               {t(`roles.${role}` as Parameters<typeof t>[0])}
             </div>
           ) : null}
         </div>
 
-        <div className="mt-6 flex-1 overflow-y-auto">
-          <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">
+        <div className="mt-3 min-h-0 lg:mt-4 lg:flex-1 lg:overflow-y-auto">
+          <p className="hidden px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45 lg:block">
             {t("dashboard_shell.navigation")}
           </p>
-          <nav className="mt-3 space-y-1.5">
+          <nav className="flex gap-2 overflow-x-auto pb-1 lg:mt-2.5 lg:block lg:space-y-1.5 lg:overflow-visible lg:pb-0">
             {visibleItems.map(({ key, href, icon: Icon }) => {
               const active =
                 href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -135,21 +135,22 @@ export function Sidebar() {
                   key={key}
                   href={href}
                   className={cn(
-                    "group flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium transition-all duration-200",
+                    "group flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:bg-white/12 motion-reduce:transition-none lg:gap-3",
                     active
                       ? "bg-white text-[color:var(--color-brand-deep)] shadow-[0_16px_30px_rgba(0,0,0,0.18)]"
                       : "text-white/72 hover:bg-white/8 hover:text-white",
                   )}
+                  aria-current={active ? "page" : undefined}
                 >
                   <span
                     className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border transition-colors",
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition-colors",
                       active
                         ? "border-[rgba(12,107,88,0.12)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
                         : "border-white/10 bg-white/6 text-white/70 group-hover:border-white/20 group-hover:text-white",
                     )}
                   >
-                    <Icon size={18} />
+                    <Icon size={17} />
                   </span>
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
                     <span className="truncate">
@@ -157,7 +158,7 @@ export function Sidebar() {
                     </span>
                     <span
                       className={cn(
-                        "h-2.5 w-2.5 rounded-full transition-opacity",
+                        "hidden h-2.5 w-2.5 rounded-full transition-opacity lg:block",
                         active
                           ? "bg-[var(--color-brand)] opacity-100"
                           : "bg-white/20 opacity-0 group-hover:opacity-100",
@@ -170,15 +171,26 @@ export function Sidebar() {
           </nav>
         </div>
 
-        <div className="mt-4 rounded-[24px] border border-white/10 bg-black/12 p-4">
+        <div className="mt-3 hidden rounded-[24px] border border-white/10 bg-black/12 p-3.5 lg:block">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">
             {t("dashboard_shell.session")}
           </p>
-          <div className="mt-3">
-            <p className="text-sm font-semibold text-white">
+          <div className="mt-2.5 min-w-0">
+            <p
+              className="truncate text-sm font-semibold text-white"
+              title={user ? `${user.firstName} ${user.lastName}` : "—"}
+            >
               {user ? `${user.firstName} ${user.lastName}` : "—"}
             </p>
-            <p className="mt-1 text-xs leading-5 text-white/60">
+            <p
+              className="mt-1 truncate text-xs leading-5 text-white/60"
+              title={
+                user?.email ??
+                (role
+                  ? t(`roles.${role}` as Parameters<typeof t>[0])
+                  : "")
+              }
+            >
               {user?.email ??
                 (role
                   ? t(`roles.${role}` as Parameters<typeof t>[0])

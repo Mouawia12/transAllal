@@ -16,6 +16,18 @@ import { apiClient } from "../../lib/api/client";
 import { ENDPOINTS } from "../../lib/api/endpoints";
 import { useCompanyScope } from "../../lib/company/use-company-scope";
 import { CompanyScopeEmpty } from "../../components/shared/company-scope-empty";
+import {
+  ManagementDetailTile,
+  ManagementHero,
+  ManagementIconBadge,
+  ManagementInlineState,
+  ManagementPanel,
+  ManagementPageState,
+  ManagementRowsSkeleton,
+  ManagementSkeletonBlock,
+  ManagementSurfaceCard,
+  ToneBadge,
+} from "../../components/shared/management-ui";
 import type { Alert, ApiResponse, Trip } from "../../types/shared";
 import { cn } from "../../lib/utils/cn";
 
@@ -58,7 +70,7 @@ export default function OverviewPage() {
   const t = useTranslations();
   const { user, hasHydrated, companyId } = useCompanyScope();
 
-  const { data: summary } = useQuery({
+  const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["reports", "summary", companyId],
     queryFn: () =>
       apiClient.get<ApiResponse<Record<string, number>>>(
@@ -70,7 +82,7 @@ export default function OverviewPage() {
     enabled: !!companyId,
   });
 
-  const { data: trips } = useQuery({
+  const { data: trips, isLoading: recentTripsLoading } = useQuery({
     queryKey: ["trips", companyId, "recent"],
     queryFn: () =>
       apiClient.get<ApiResponse<Trip[]>>(ENDPOINTS.TRIPS, {
@@ -81,7 +93,7 @@ export default function OverviewPage() {
     enabled: !!companyId,
   });
 
-  const { data: alerts } = useQuery({
+  const { data: alerts, isLoading: recentAlertsLoading } = useQuery({
     queryKey: ["alerts", companyId, "recent"],
     queryFn: () =>
       apiClient.get<ApiResponse<Alert[]>>(ENDPOINTS.ALERTS, {
@@ -95,7 +107,12 @@ export default function OverviewPage() {
   const s = summary?.data ?? {};
 
   if (!hasHydrated) {
-    return <p className="text-sm text-[var(--color-muted)]">{t("loading")}</p>;
+    return (
+      <ManagementPageState
+        title={t("ui_state.loading_title")}
+        description={t("ui_state.loading_description")}
+      />
+    );
   }
 
   if (!user || !companyId) {
@@ -143,96 +160,103 @@ export default function OverviewPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 md:space-y-6">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_370px]">
-        <div className="rounded-[30px] border border-[rgba(255,255,255,0.16)] bg-[linear-gradient(135deg,#0d1721_0%,#0f3f3b_52%,#125e52_100%)] p-6 text-white shadow-[var(--shadow-elevated)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/60">
-            {t("overview.eyebrow")}
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
-            {t("overview.hero_title")}
-          </h2>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/78 md:text-base">
-            {t("overview.hero_summary")}
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-2">
-            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90">
-              {t(`roles.${user.role}` as Parameters<typeof t>[0])}
-            </span>
-            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90">
-              {activeDrivers > 0
-                ? t("overview.live_status_active")
-                : t("overview.live_status_idle")}
-            </span>
-            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90">
-              {t("overview.secure_status")}
-            </span>
+        <ManagementHero
+          eyebrow={t("overview.eyebrow")}
+          title={t("overview.hero_title")}
+          description={t("overview.hero_summary")}
+          className="bg-[linear-gradient(135deg,#0d1721_0%,#0f3f3b_52%,#125e52_100%)]"
+        >
+          <div className="flex flex-wrap gap-2">
+            <ToneBadge
+              label={t(`roles.${user.role}` as Parameters<typeof t>[0])}
+              toneClassName="border-white/15 bg-white/10 text-white/90"
+            />
+            <ToneBadge
+              label={
+                activeDrivers > 0
+                  ? t("overview.live_status_active")
+                  : t("overview.live_status_idle")
+              }
+              toneClassName="border-white/15 bg-white/10 text-white/90"
+            />
+            <ToneBadge
+              label={t("overview.secure_status")}
+              toneClassName="border-white/15 bg-white/10 text-white/90"
+            />
           </div>
-        </div>
+        </ManagementHero>
 
-        <div className="rounded-[30px] border border-[var(--color-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(255,255,255,0.72)_100%)] p-6 shadow-[var(--shadow-panel)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
-                {t("overview.snapshot_eyebrow")}
+        <ManagementPanel
+          eyebrow={t("overview.snapshot_eyebrow")}
+          title={t("overview.snapshot_title")}
+          className="bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(255,255,255,0.72)_100%)]"
+          headerSlot={
+            <ManagementIconBadge icon={Activity} />
+          }
+        >
+          {summaryLoading ? (
+            <div className="mt-5 space-y-4">
+              <div className="grid gap-3">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <ManagementSkeletonBlock
+                    key={index}
+                    className="h-16 rounded-[22px]"
+                  />
+                ))}
+              </div>
+              <ManagementSkeletonBlock className="h-4 w-4/5" />
+            </div>
+          ) : (
+            <>
+              <div className="mt-5 grid gap-3">
+                <ManagementDetailTile
+                  label={t("overview.completion_rate")}
+                  value={`${completionRate}%`}
+                />
+                <ManagementDetailTile
+                  label={t("overview.active_drivers")}
+                  value={String(activeDrivers)}
+                />
+                <ManagementDetailTile
+                  label={t("overview.critical_signals")}
+                  value={String(recentAlerts.length)}
+                />
+              </div>
+
+              <p className="mt-5 text-sm leading-6 text-[var(--color-muted)]">
+                {t("overview.snapshot_note")}
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-[var(--color-ink)]">
-                {t("overview.snapshot_title")}
-              </h3>
-            </div>
-            <div className="rounded-2xl bg-[rgba(12,107,88,0.08)] p-3 text-[var(--color-brand)]">
-              <Activity size={20} />
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white/75 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-[var(--color-muted)]">
-                  {t("overview.completion_rate")}
-                </span>
-                <span className="text-xl font-semibold text-[var(--color-ink)]">
-                  {completionRate}%
-                </span>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white/75 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-[var(--color-muted)]">
-                  {t("overview.active_drivers")}
-                </span>
-                <span className="text-xl font-semibold text-[var(--color-ink)]">
-                  {activeDrivers}
-                </span>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-[var(--color-border)] bg-white/75 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium text-[var(--color-muted)]">
-                  {t("overview.critical_signals")}
-                </span>
-                <span className="text-xl font-semibold text-[var(--color-ink)]">
-                  {recentAlerts.length}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-5 text-sm leading-6 text-[var(--color-muted)]">
-            {t("overview.snapshot_note")}
-          </p>
-        </div>
+            </>
+          )}
+        </ManagementPanel>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => {
+        {summaryLoading
+          ? Array.from({ length: 4 }, (_, index) => (
+              <ManagementSurfaceCard
+                key={index}
+                className="rounded-[26px] bg-[linear-gradient(180deg,var(--color-panel-strong)_0%,rgba(255,255,255,0.72)_100%)] p-5 shadow-[var(--shadow-panel)]"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <ManagementSkeletonBlock className="h-3 w-24" />
+                    <ManagementSkeletonBlock className="h-10 w-16" />
+                  </div>
+                  <ManagementSkeletonBlock className="h-12 w-12 rounded-2xl" />
+                </div>
+                <ManagementSkeletonBlock className="mt-4 h-4 w-4/5" />
+              </ManagementSurfaceCard>
+            ))
+          : cards.map((card) => {
           const Icon = card.icon;
 
           return (
-            <article
+            <ManagementSurfaceCard
               key={card.label}
-              className="rounded-[26px] border border-[var(--color-border)] bg-[linear-gradient(180deg,var(--color-panel-strong)_0%,rgba(255,255,255,0.72)_100%)] p-5 shadow-[var(--shadow-panel)]"
+              className="rounded-[26px] bg-[linear-gradient(180deg,var(--color-panel-strong)_0%,rgba(255,255,255,0.72)_100%)] p-5 shadow-[var(--shadow-panel)]"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -255,45 +279,34 @@ export default function OverviewPage() {
               <p className="mt-4 text-sm leading-6 text-[var(--color-muted)]">
                 {card.note}
               </p>
-            </article>
+            </ManagementSurfaceCard>
           );
         })}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        <div className="rounded-[28px] border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-6 shadow-[var(--shadow-panel)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
-                {t("overview.recent_trips_eyebrow")}
-              </p>
-              <h3 className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">
-                {t("overview.recent_trips")}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
-                {t("overview.recent_trips_description")}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-[rgba(12,107,88,0.08)] p-3 text-[var(--color-brand)]">
-              <CalendarClock size={20} />
-            </div>
-          </div>
-
+        <ManagementPanel
+          eyebrow={t("overview.recent_trips_eyebrow")}
+          title={t("overview.recent_trips")}
+          description={t("overview.recent_trips_description")}
+          className="bg-[var(--color-panel-strong)]"
+          headerSlot={
+            <ManagementIconBadge icon={CalendarClock} />
+          }
+        >
           <div className="mt-5 space-y-3">
-            {recentTrips.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-white/60 px-5 py-8 text-center">
-                <p className="text-sm font-medium text-[var(--color-ink)]">
-                  {t("overview.empty_trips")}
-                </p>
-                <p className="mt-2 text-sm text-[var(--color-muted)]">
-                  {t("overview.empty_trips_note")}
-                </p>
-              </div>
+            {recentTripsLoading ? (
+              <ManagementRowsSkeleton count={3} />
+            ) : recentTrips.length === 0 ? (
+              <ManagementInlineState
+                title={t("overview.empty_trips")}
+                description={t("overview.empty_trips_note")}
+              />
             ) : (
               recentTrips.map((trip) => (
-                <div
+                <ManagementSurfaceCard
                   key={trip.id}
-                  className="flex items-start justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-white/70 px-4 py-4"
+                  className="flex items-start justify-between gap-4 rounded-2xl bg-white/70 px-4 py-4"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-ink)]">
@@ -308,55 +321,43 @@ export default function OverviewPage() {
                       {formatShortDate(trip.scheduledAt)}
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
-                      statusTone(trip.status),
-                    )}
-                  >
-                    {t(
+                  <ToneBadge
+                    label={t(
                       `status_values.${trip.status}` as Parameters<typeof t>[0],
                     )}
-                  </span>
-                </div>
+                    toneClassName={cn("shrink-0", statusTone(trip.status))}
+                  />
+                </ManagementSurfaceCard>
               ))
             )}
           </div>
-        </div>
+        </ManagementPanel>
 
-        <div className="rounded-[28px] border border-[var(--color-border)] bg-[var(--color-panel-strong)] p-6 shadow-[var(--shadow-panel)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-accent)]">
-                {t("overview.recent_alerts_eyebrow")}
-              </p>
-              <h3 className="mt-2 text-2xl font-semibold text-[var(--color-ink)]">
-                {t("overview.recent_alerts")}
-              </h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--color-muted)]">
-                {t("overview.recent_alerts_description")}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-[rgba(201,95,58,0.10)] p-3 text-[var(--color-accent)]">
-              <ShieldAlert size={20} />
-            </div>
-          </div>
-
+        <ManagementPanel
+          eyebrow={t("overview.recent_alerts_eyebrow")}
+          title={t("overview.recent_alerts")}
+          description={t("overview.recent_alerts_description")}
+          className="bg-[var(--color-panel-strong)]"
+          headerSlot={
+            <ManagementIconBadge
+              icon={ShieldAlert}
+              className="bg-[rgba(201,95,58,0.10)] text-[var(--color-accent)]"
+            />
+          }
+        >
           <div className="mt-5 space-y-3">
-            {recentAlerts.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-white/60 px-5 py-8 text-center">
-                <p className="text-sm font-medium text-[var(--color-ink)]">
-                  {t("overview.empty_alerts")}
-                </p>
-                <p className="mt-2 text-sm text-[var(--color-muted)]">
-                  {t("overview.empty_alerts_note")}
-                </p>
-              </div>
+            {recentAlertsLoading ? (
+              <ManagementRowsSkeleton count={3} />
+            ) : recentAlerts.length === 0 ? (
+              <ManagementInlineState
+                title={t("overview.empty_alerts")}
+                description={t("overview.empty_alerts_note")}
+              />
             ) : (
               recentAlerts.map((alert) => (
-                <div
+                <ManagementSurfaceCard
                   key={alert.id}
-                  className="flex items-start justify-between gap-4 rounded-2xl border border-[var(--color-border)] bg-white/70 px-4 py-4"
+                  className="flex items-start justify-between gap-4 rounded-2xl bg-white/70 px-4 py-4"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-ink)]">
@@ -374,21 +375,17 @@ export default function OverviewPage() {
                       {alert.message || t("overview.alert_without_message")}
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
-                      severityTone(alert.severity),
-                    )}
-                  >
-                    {t(
+                  <ToneBadge
+                    label={t(
                       `severity.${alert.severity}` as Parameters<typeof t>[0],
                     )}
-                  </span>
-                </div>
+                    toneClassName={cn("shrink-0", severityTone(alert.severity))}
+                  />
+                </ManagementSurfaceCard>
               ))
             )}
           </div>
-        </div>
+        </ManagementPanel>
       </section>
     </div>
   );

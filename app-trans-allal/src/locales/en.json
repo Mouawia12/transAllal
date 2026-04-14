@@ -31,7 +31,14 @@
     "passwordMin": "Password must be at least 6 characters",
     "unexpectedError": "Unable to sign in. Please try again.",
     "welcomeBack": "Welcome Back",
-    "subtitle": "Sign in to continue"
+    "subtitle": "Sign in to access trips and live tracking with confidence",
+    "secureAccess": "Secure Access",
+    "driverPortal": "Driver Portal",
+    "formEyebrow": "Account Access",
+    "formDescription": "Enter your phone number and password to access trips, tracking, and alerts in one place.",
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "signInNote": "Your credentials are verified over a secure connection before opening the driver account."
   },
   "nav": {
     "home": "Home",

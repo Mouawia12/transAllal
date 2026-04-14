@@ -41,11 +41,11 @@ export const realtimeClient = {
   },
 
   publishLocation(payload: {
-    latitude: number;
-    longitude: number;
-    speed?: number;
+    lat: number;
+    lng: number;
+    speedKmh?: number;
     heading?: number;
-    accuracy?: number;
+    accuracyM?: number;
     tripId?: string;
   }): void {
     socket?.emit(WsEvents.DRIVER_LOCATION_PUBLISH, payload);

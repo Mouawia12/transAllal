@@ -1,20 +1,24 @@
 const KEY = process.env.NEXT_PUBLIC_AUTH_STORAGE_KEY ?? 'trans-allal-dashboard-token';
+const ACCESS_KEY = `${KEY}:access`;
+const REFRESH_KEY = `${KEY}:refresh`;
 
 export const tokenStore = {
+  accessStorageKey: ACCESS_KEY,
+  refreshStorageKey: REFRESH_KEY,
   getAccessToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(`${KEY}:access`);
+    return localStorage.getItem(ACCESS_KEY);
   },
   getRefreshToken(): string | null {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(`${KEY}:refresh`);
+    return localStorage.getItem(REFRESH_KEY);
   },
   setTokens(access: string, refresh: string): void {
-    localStorage.setItem(`${KEY}:access`, access);
-    localStorage.setItem(`${KEY}:refresh`, refresh);
+    localStorage.setItem(ACCESS_KEY, access);
+    localStorage.setItem(REFRESH_KEY, refresh);
   },
   clear(): void {
-    localStorage.removeItem(`${KEY}:access`);
-    localStorage.removeItem(`${KEY}:refresh`);
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
   },
 };

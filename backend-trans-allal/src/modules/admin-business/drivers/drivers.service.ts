@@ -28,7 +28,7 @@ export class DriversService {
       qb.andWhere('d.isActive = :isActive', { isActive });
     if (search) {
       qb.andWhere(
-        '(LOWER(d.firstName) LIKE :search OR LOWER(d.lastName) LIKE :search OR LOWER(d.phone) LIKE :search)',
+        '(LOWER(d.firstName) LIKE :search OR LOWER(d.lastName) LIKE :search OR LOWER(d.phone) LIKE :search OR LOWER(d.licenseNumber) LIKE :search)',
         { search: `%${search.toLowerCase()}%` },
       );
     }

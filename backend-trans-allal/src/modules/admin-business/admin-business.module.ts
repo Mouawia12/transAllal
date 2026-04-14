@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Company } from './companies/company.entity';
 import { CompaniesModule } from './companies/companies.module';
 import { DevelopmentSeedService } from './development-seed.service';
+import { Driver } from './drivers/driver.entity';
 import { DriversModule } from './drivers/drivers.module';
 import { ReportsModule } from './reports/reports.module';
 import { TripsModule } from './trips/trips.module';
@@ -12,7 +13,7 @@ import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Company, User]),
+    TypeOrmModule.forFeature([Company, User, Driver]),
     UsersModule,
     CompaniesModule,
     DriversModule,

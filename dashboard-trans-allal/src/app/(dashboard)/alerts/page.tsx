@@ -1,38 +1,84 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldAlert,
+} from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { CompanyScopeEmpty } from '../../../components/shared/company-scope-empty';
+import {
+  ManagementActionButton,
+  ManagementDesktopTable,
+  ManagementField,
+  ManagementHero,
+  MANAGEMENT_TABLE_CELL_CLASSNAME,
+  MANAGEMENT_TABLE_HEAD_CLASSNAME,
+  ManagementInlineState,
+  ManagementMobileCard,
+  ManagementMobileList,
+  ManagementPanel,
+  ManagementPageState,
+  ManagementRowsSkeleton,
+  ManagementSelectField,
+  ManagementStatCard,
+  ManagementTableSkeleton,
+  ManagementTableState,
+  PaginationBar,
+  ToneBadge,
+} from '../../../components/shared/management-ui';
 import { apiClient } from '../../../lib/api/client';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { realtimeClient } from '../../../lib/api/realtime-client';
 import { tokenStore } from '../../../lib/auth/token-store';
 import { useCompanyScope } from '../../../lib/company/use-company-scope';
+import { cn } from '../../../lib/utils/cn';
 import type { Alert, ApiResponse } from '../../../types/shared';
 
-const SEVERITY_COLORS: Record<string, string> = {
-  LOW: 'bg-blue-100 text-blue-700',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  HIGH: 'bg-orange-100 text-orange-700',
-  CRITICAL: 'bg-red-100 text-red-700',
-};
+const ALERT_TYPES = [
+  'SPEEDING',
+  'GEOFENCE_EXIT',
+  'IDLE',
+  'SOS',
+  'ROUTE_DEVIATION',
+] as const;
 
-type AlertTypeFilter =
-  | 'SPEEDING'
-  | 'GEOFENCE_EXIT'
-  | 'IDLE'
-  | 'SOS'
-  | 'ROUTE_DEVIATION'
-  | '';
+const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const;
 
-type SeverityFilter = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | '';
+type AlertTypeFilter = (typeof ALERT_TYPES)[number] | '';
+type SeverityFilter = (typeof SEVERITIES)[number] | '';
 type ReadFilter = 'all' | 'read' | 'unread';
 
 function matchesReadFilter(isRead: boolean, filter: ReadFilter): boolean {
   if (filter === 'all') return true;
   if (filter === 'read') return isRead;
   return !isRead;
+}
+
+function severityTone(severity: Alert['severity']) {
+  switch (severity) {
+    case 'CRITICAL':
+      return 'border-red-200 bg-red-50 text-red-700';
+    case 'HIGH':
+      return 'border-orange-200 bg-orange-50 text-orange-700';
+    case 'MEDIUM':
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+    default:
+      return 'border-sky-200 bg-sky-50 text-sky-700';
+  }
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 
 export default function AlertsPage() {
@@ -67,8 +113,8 @@ export default function AlertsPage() {
           alert.id === id ? { ...alert, isRead: true } : alert,
         ),
       );
-      void qc.invalidateQueries({ queryKey: ['alerts'] });
-      void qc.invalidateQueries({ queryKey: ['reports', 'alerts'] });
+      void qc.invalidateQueries({ queryKey: ['alerts', companyId] });
+      void qc.invalidateQueries({ queryKey: ['reports', 'alerts', companyId] });
     },
   });
 
@@ -78,8 +124,8 @@ export default function AlertsPage() {
       setLiveAlerts((current) =>
         current.map((alert) => ({ ...alert, isRead: true })),
       );
-      void qc.invalidateQueries({ queryKey: ['alerts'] });
-      void qc.invalidateQueries({ queryKey: ['reports', 'alerts'] });
+      void qc.invalidateQueries({ queryKey: ['alerts', companyId] });
+      void qc.invalidateQueries({ queryKey: ['reports', 'alerts', companyId] });
     },
   });
 
@@ -125,7 +171,8 @@ export default function AlertsPage() {
         );
         return [nextAlert, ...withoutDuplicate].slice(0, 20);
       });
-      void qc.invalidateQueries({ queryKey: ['reports', 'alerts'] });
+      void qc.invalidateQueries({ queryKey: ['alerts', companyId] });
+      void qc.invalidateQueries({ queryKey: ['reports', 'alerts', companyId] });
     };
 
     realtimeClient.connect(token);
@@ -157,10 +204,21 @@ export default function AlertsPage() {
   }, [liveAlerts, serverAlerts]);
 
   const unreadCount = mergedAlerts.filter((alert) => !alert.isRead).length;
+  const criticalCount = mergedAlerts.filter(
+    (alert) => alert.severity === 'CRITICAL',
+  ).length;
   const totalPages = data?.meta?.totalPages ?? 1;
+  const activeFilterCount = [typeFilter, severityFilter, readFilter !== 'all']
+    .filter(Boolean)
+    .length;
 
   if (!hasHydrated) {
-    return <p className="text-sm text-gray-400">{t('loading')}</p>;
+    return (
+      <ManagementPageState
+        title={t('ui_state.loading_title')}
+        description={t('ui_state.loading_description')}
+      />
+    );
   }
 
   if (!user || !companyId) {
@@ -168,129 +226,280 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('nav.alerts')}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {t('alerts.description')}
-          </p>
+    <div className="space-y-5 md:space-y-6">
+      <ManagementHero
+        eyebrow={t('alerts.eyebrow')}
+        title={t('nav.alerts')}
+        description={t('alerts.description')}
+        className="bg-[linear-gradient(135deg,#170f24_0%,#4a1d39_46%,#8f3c2f_100%)]"
+        actions={
+          <ManagementActionButton
+            onClick={() => markAll.mutate()}
+            disabled={unreadCount === 0}
+            loading={markAll.isPending}
+            tone="hero"
+            size="md"
+            className="py-3"
+          >
+            {t('mark_all_read')}
+          </ManagementActionButton>
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ManagementStatCard
+            icon={AlertTriangle}
+            label={t('alerts.total_in_view')}
+            value={mergedAlerts.length}
+            note={t('alerts.total_note')}
+          />
+          <ManagementStatCard
+            icon={Activity}
+            label={t('alerts.live_feed')}
+            value={liveAlerts.length}
+            note={t('alerts.live_note')}
+            toneClassName="bg-sky-400/18 text-sky-50"
+          />
+          <ManagementStatCard
+            icon={ShieldAlert}
+            label={t('alerts.unread_in_view')}
+            value={unreadCount}
+            note={t('alerts.unread_note')}
+            toneClassName="bg-amber-400/18 text-amber-50"
+          />
+          <ManagementStatCard
+            icon={CheckCircle2}
+            label={t('alerts.critical_in_view')}
+            value={criticalCount}
+            note={t('alerts.critical_note')}
+            toneClassName="bg-rose-400/18 text-rose-50"
+          />
         </div>
-        <button onClick={() => markAll.mutate()} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={markAll.isPending}>
-          {t('mark_all_read')}
-        </button>
-      </div>
-      <div className="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950 md:grid-cols-4">
-        <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-          <span>{t('type')}</span>
-          <select
-            value={typeFilter}
-            onChange={(event) => setTypeFilter(event.target.value as AlertTypeFilter)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
-          >
-            <option value="">{t('alerts.all_types')}</option>
-            {(['SPEEDING', 'GEOFENCE_EXIT', 'IDLE', 'SOS', 'ROUTE_DEVIATION'] as const).map((type) => (
-              <option key={type} value={type}>
-                {t(`alert_types.${type}` as Parameters<typeof t>[0])}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-          <span>{t('severity_label')}</span>
-          <select
-            value={severityFilter}
-            onChange={(event) => setSeverityFilter(event.target.value as SeverityFilter)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
-          >
-            <option value="">{t('alerts.all_severities')}</option>
-            {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map((severity) => (
-              <option key={severity} value={severity}>
-                {t(`severity.${severity}` as Parameters<typeof t>[0])}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-          <span>{t('status')}</span>
-          <select
-            value={readFilter}
-            onChange={(event) => setReadFilter(event.target.value as ReadFilter)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
-          >
-            <option value="all">{t('alerts.all_statuses')}</option>
-            <option value="unread">{t('unread')}</option>
-            <option value="read">{t('read')}</option>
-          </select>
-        </label>
-        <div className="rounded-xl bg-blue-50 px-4 py-3 dark:bg-blue-950/30">
-          <p className="text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-300">
-            {t('alerts.live_feed')}
-          </p>
-          <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-            {unreadCount}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {t('alerts.unread_in_view')}
-          </p>
-        </div>
-      </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              {[t('type'), t('severity_label'), t('message'), t('status'), t('created_at'), t('actions')].map(h => (
-                <th key={h} className="text-start px-4 py-3 font-medium text-gray-600 dark:text-gray-300">{h}</th>
+      </ManagementHero>
+
+      <ManagementPanel
+        title={t('alerts.filters_title')}
+        description={t('alerts.filters_description')}
+        bodyClassName="space-y-4"
+        headerSlot={
+          <ToneBadge
+            label={`${t('alerts.filtered_results')}: ${mergedAlerts.length}`}
+            toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+          />
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <ManagementField label={t('type')}>
+            <ManagementSelectField
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as AlertTypeFilter)}
+            >
+              <option value="">{t('alerts.all_types')}</option>
+              {ALERT_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {t(`alert_types.${type}` as Parameters<typeof t>[0])}
+                </option>
               ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {isLoading && <tr><td colSpan={6} className="text-center py-8 text-gray-400">{t('loading')}</td></tr>}
-            {!isLoading && mergedAlerts.length === 0 && (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-400">{t('no_data')}</td></tr>
-            )}
-            {mergedAlerts.map(a => (
-              <tr key={a.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${a.isRead ? 'opacity-60' : ''}`}>
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{t(`alert_types.${a.type}` as Parameters<typeof t>[0])}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SEVERITY_COLORS[a.severity] ?? ''}`}>
-                    {t(`severity.${a.severity}` as Parameters<typeof t>[0])}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 max-w-xs truncate">{a.message ?? '—'}</td>
-                <td className="px-4 py-3">
-                  <span className={`text-xs ${a.isRead ? 'text-gray-400' : 'text-blue-600 font-medium'}`}>
-                    {a.isRead ? t('read') : t('unread')}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                  {new Date(a.createdAt).toLocaleString()}
-                </td>
-                <td className="px-4 py-3">
-                  {!a.isRead && (
-                    <button onClick={() => markRead.mutate(a.id)} className="text-blue-500 hover:text-blue-700 text-xs">
-                      {t('mark_read')}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {totalPages > 1 && (
-          <div className="flex justify-center gap-2 p-4">
-            {Array.from({ length: totalPages }, (_, index) => (
-              <button
-                key={index}
-                onClick={() => setPage(index + 1)}
-                className={`px-3 py-1 rounded ${page === index + 1 ? 'bg-blue-600 text-white' : 'border text-gray-600 hover:bg-gray-50'}`}
-              >
-                {index + 1}
-              </button>
-            ))}
+            </ManagementSelectField>
+          </ManagementField>
+
+          <ManagementField label={t('severity_label')}>
+            <ManagementSelectField
+              value={severityFilter}
+              onChange={(event) =>
+                setSeverityFilter(event.target.value as SeverityFilter)
+              }
+            >
+              <option value="">{t('alerts.all_severities')}</option>
+              {SEVERITIES.map((severity) => (
+                <option key={severity} value={severity}>
+                  {t(`severity.${severity}` as Parameters<typeof t>[0])}
+                </option>
+              ))}
+            </ManagementSelectField>
+          </ManagementField>
+
+          <ManagementField label={t('status')}>
+            <ManagementSelectField
+              value={readFilter}
+              onChange={(event) => setReadFilter(event.target.value as ReadFilter)}
+            >
+              <option value="all">{t('alerts.all_statuses')}</option>
+              <option value="unread">{t('unread')}</option>
+              <option value="read">{t('read')}</option>
+            </ManagementSelectField>
+          </ManagementField>
+
+          <div className="flex items-end justify-end">
+            <div className="flex flex-wrap gap-2">
+              {activeFilterCount > 0 ? (
+                <ToneBadge
+                  label={`${t('alerts.active_filters')}: ${activeFilterCount}`}
+                  toneClassName="border-[rgba(12,107,88,0.18)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
+                />
+              ) : null}
+              <ToneBadge
+                label={`${t('reports.total')}: ${data?.meta?.total ?? mergedAlerts.length}`}
+                toneClassName="border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.05)] text-[var(--color-ink)]"
+              />
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      </ManagementPanel>
+
+      <ManagementPanel
+        eyebrow={t('nav.alerts')}
+        title={t('alerts.table_title')}
+        description={t('alerts.table_description')}
+        bodyClassName="p-0"
+      >
+        <ManagementMobileList>
+          {isLoading && mergedAlerts.length === 0 ? (
+            <ManagementRowsSkeleton count={3} />
+          ) : null}
+
+          {!isLoading && mergedAlerts.length === 0 ? (
+            <ManagementInlineState
+              title={t('ui_state.empty_title')}
+              description={t('ui_state.empty_description')}
+            />
+          ) : null}
+
+          {!isLoading &&
+            mergedAlerts.map((alert) => (
+              <ManagementMobileCard
+                key={alert.id}
+                title={t(`alert_types.${alert.type}` as Parameters<typeof t>[0])}
+                subtitle={formatDateTime(alert.createdAt)}
+                className={!alert.isRead ? 'ring-1 ring-[rgba(12,107,88,0.1)]' : undefined}
+                headerSlot={
+                  <ToneBadge
+                    label={t(`severity.${alert.severity}` as Parameters<typeof t>[0])}
+                    toneClassName={severityTone(alert.severity)}
+                  />
+                }
+                footer={
+                  !alert.isRead ? (
+                    <ManagementActionButton onClick={() => markRead.mutate(alert.id)}>
+                      {t('mark_read')}
+                    </ManagementActionButton>
+                  ) : undefined
+                }
+              >
+                <div className="flex flex-wrap gap-2">
+                  <ToneBadge
+                    label={alert.isRead ? t('read') : t('unread')}
+                    toneClassName={
+                      alert.isRead
+                        ? 'border-slate-200 bg-slate-100 text-slate-600'
+                        : 'border-sky-200 bg-sky-50 text-sky-700'
+                    }
+                  />
+                </div>
+                <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                    {t('message')}
+                  </p>
+                  <p className="mt-1.5 text-sm leading-6 text-[var(--color-ink)]">
+                    {alert.message ?? '—'}
+                  </p>
+                </div>
+              </ManagementMobileCard>
+            ))}
+        </ManagementMobileList>
+
+        <ManagementDesktopTable>
+          <table className="min-w-full text-sm" aria-busy={isLoading}>
+            <caption className="sr-only">
+              {t('alerts.table_title')}. {t('alerts.table_description')}
+            </caption>
+            <thead className="bg-[rgba(15,23,42,0.04)]">
+              <tr>
+                {[t('type'), t('severity_label'), t('message'), t('status'), t('created_at'), t('actions')].map(
+                  (heading) => (
+                    <th
+                      key={heading}
+                      scope="col"
+                      className={MANAGEMENT_TABLE_HEAD_CLASSNAME}
+                    >
+                      {heading}
+                    </th>
+                  ),
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[rgba(15,23,42,0.08)]">
+              {isLoading && mergedAlerts.length === 0 ? (
+                <ManagementTableSkeleton colSpan={6} rows={4} />
+              ) : null}
+
+              {!isLoading && mergedAlerts.length === 0 ? (
+                <ManagementTableState
+                  colSpan={6}
+                  title={t('ui_state.empty_title')}
+                  description={t('ui_state.empty_description')}
+                />
+              ) : null}
+
+              {mergedAlerts.map((alert) => (
+                <tr
+                  key={alert.id}
+                  className={cn(
+                    'transition hover:bg-white/70 motion-reduce:transition-none',
+                    !alert.isRead && 'bg-[rgba(249,250,251,0.75)]',
+                    alert.isRead && 'opacity-70',
+                  )}
+                >
+                  <th
+                    scope="row"
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} font-semibold text-[var(--color-ink)]`}
+                  >
+                    {t(`alert_types.${alert.type}` as Parameters<typeof t>[0])}
+                  </th>
+                  <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                    <ToneBadge
+                      label={t(`severity.${alert.severity}` as Parameters<typeof t>[0])}
+                      toneClassName={severityTone(alert.severity)}
+                    />
+                  </td>
+                  <td
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} max-w-[340px] text-[var(--color-muted)]`}
+                  >
+                    <div className="line-clamp-2">
+                      {alert.message ?? '—'}
+                    </div>
+                  </td>
+                  <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                    <ToneBadge
+                      label={alert.isRead ? t('read') : t('unread')}
+                      toneClassName={
+                        alert.isRead
+                          ? 'border-slate-200 bg-slate-100 text-slate-600'
+                          : 'border-sky-200 bg-sky-50 text-sky-700'
+                      }
+                    />
+                  </td>
+                  <td
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} whitespace-nowrap text-[var(--color-muted)]`}
+                  >
+                    {formatDateTime(alert.createdAt)}
+                  </td>
+                  <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                    {!alert.isRead ? (
+                      <ManagementActionButton onClick={() => markRead.mutate(alert.id)}>
+                        {t('mark_read')}
+                      </ManagementActionButton>
+                    ) : (
+                      <span className="text-xs text-[var(--color-muted)]">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ManagementDesktopTable>
+
+        <PaginationBar page={page} totalPages={totalPages} onChange={setPage} />
+      </ManagementPanel>
     </div>
   );
 }

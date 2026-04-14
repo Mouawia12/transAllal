@@ -1,6 +1,13 @@
 import { tokenStore } from '../auth/token-store';
+import {
+  buildSignInHref,
+  getCurrentAppPath,
+  persistAuthRedirectReason,
+} from '../auth/navigation';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000/api/v1';
+const AUTH_REFRESH_TIMEOUT_MS = 8_000;
+let refreshRequest: Promise<boolean> | null = null;
 
 interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
@@ -28,10 +35,40 @@ export class ApiError extends Error {
   }
 }
 
+function createNetworkApiError(error: unknown): ApiError {
+  if (error instanceof ApiError) {
+    return error;
+  }
+
+  if (error instanceof Error && error.name === 'AbortError') {
+    return new ApiError(0, 'REQUEST_ABORTED', 'Request was aborted');
+  }
+
+  return new ApiError(0, 'NETWORK_ERROR', 'Unable to reach the server');
+}
+
 function redirectToSignIn(): void {
   if (typeof window !== 'undefined') {
-    window.location.href = '/sign-in';
+    persistAuthRedirectReason('session-expired');
+    window.location.href = buildSignInHref(
+      getCurrentAppPath(),
+      'session-expired',
+    );
   }
+}
+
+function finalizeUnauthorizedState(
+  expectedAccessToken: string | null,
+  skipUnauthorizedRedirect: boolean,
+): never {
+  if (tokenStore.getAccessToken() === expectedAccessToken) {
+    tokenStore.clear();
+    if (!skipUnauthorizedRedirect) {
+      redirectToSignIn();
+    }
+  }
+
+  throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
 }
 
 async function parseApiError(response: Response): Promise<ApiError> {
@@ -47,6 +84,57 @@ async function parseApiError(response: Response): Promise<ApiError> {
     );
   } catch {
     return new ApiError(response.status, String(response.status), fallbackMessage);
+  }
+}
+
+async function parseResponseBody<T>(response: Response): Promise<T> {
+  if (response.status === 204 || response.status === 205) {
+    return undefined as T;
+  }
+
+  const contentLength = response.headers.get('content-length');
+  if (contentLength === '0') {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get('content-type') ?? '';
+  const rawBody = await response.text();
+  if (!rawBody.trim()) {
+    return undefined as T;
+  }
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(rawBody) as T;
+  }
+
+  return rawBody as T;
+}
+
+function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  timeoutReason: string,
+): Promise<Response> {
+  const controller = new AbortController();
+  let settled = false;
+  const timeoutId = setTimeout(() => {
+    settled = true;
+    controller.abort(timeoutReason);
+  }, timeoutMs);
+
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => {
+    if (!settled) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+async function performFetch(input: RequestInfo | URL, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (error) {
+    throw createNetworkApiError(error);
   }
 }
 
@@ -72,49 +160,96 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const res = await fetch(url.toString(), { ...rest, headers: mergedHeaders });
+  const res = await performFetch(url.toString(), { ...rest, headers: mergedHeaders });
 
   if (res.status === 401 && !skipAuthRefresh) {
+    const latestToken = tokenStore.getAccessToken();
+    if (latestToken && latestToken !== token) {
+      mergedHeaders['Authorization'] = `Bearer ${latestToken}`;
+      const retryWithLatestToken = await performFetch(url.toString(), {
+        ...rest,
+        headers: mergedHeaders,
+      });
+
+      if (retryWithLatestToken.ok) {
+        return parseResponseBody<T>(retryWithLatestToken);
+      }
+
+      if (retryWithLatestToken.status !== 401) {
+        throw await parseApiError(retryWithLatestToken);
+      }
+    }
+
     const refreshed = await tryRefresh();
     if (refreshed) {
       const newToken = tokenStore.getAccessToken();
-      mergedHeaders['Authorization'] = `Bearer ${newToken}`;
-      const retry = await fetch(url.toString(), { ...rest, headers: mergedHeaders });
-      if (!retry.ok) {
-        tokenStore.clear();
-        if (!skipUnauthorizedRedirect) redirectToSignIn();
-        throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
+      if (!newToken) {
+        finalizeUnauthorizedState(newToken, skipUnauthorizedRedirect);
       }
-      return retry.json() as Promise<T>;
+      mergedHeaders['Authorization'] = `Bearer ${newToken}`;
+      const retry = await performFetch(url.toString(), { ...rest, headers: mergedHeaders });
+      if (!retry.ok) {
+        if (retry.status === 401) {
+          finalizeUnauthorizedState(newToken, skipUnauthorizedRedirect);
+        }
+
+        throw await parseApiError(retry);
+      }
+      return parseResponseBody<T>(retry);
     }
-    tokenStore.clear();
-    if (!skipUnauthorizedRedirect) redirectToSignIn();
-    throw new ApiError(401, 'UNAUTHORIZED', 'Session expired');
+    finalizeUnauthorizedState(token, skipUnauthorizedRedirect);
   }
 
   if (!res.ok) {
     throw await parseApiError(res);
   }
 
-  return res.json() as Promise<T>;
+  return parseResponseBody<T>(res);
 }
 
 async function tryRefresh(): Promise<boolean> {
+  if (refreshRequest) {
+    return refreshRequest;
+  }
+
   const refresh = tokenStore.getRefreshToken();
   if (!refresh) return false;
-  try {
-    const res = await fetch(`${BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: refresh }),
-    });
-    if (!res.ok) return false;
-    const data = await res.json() as { data: { accessToken: string; refreshToken: string } };
-    tokenStore.setTokens(data.data.accessToken, data.data.refreshToken);
-    return true;
-  } catch {
-    return false;
-  }
+
+  refreshRequest = (async () => {
+    try {
+      const res = await fetchWithTimeout(
+        `${BASE_URL}/auth/refresh`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refresh }),
+        },
+        AUTH_REFRESH_TIMEOUT_MS,
+        'AUTH_REFRESH_TIMEOUT',
+      );
+      if (!res.ok) {
+        return tokenStore.getRefreshToken() !== refresh
+          ? Boolean(tokenStore.getAccessToken())
+          : false;
+      }
+      const data = await res.json() as { data: { accessToken: string; refreshToken: string } };
+
+      if (tokenStore.getRefreshToken() !== refresh) {
+        return Boolean(tokenStore.getAccessToken());
+      }
+
+      tokenStore.setTokens(data.data.accessToken, data.data.refreshToken);
+      return true;
+    } catch {
+      return tokenStore.getRefreshToken() !== refresh
+        ? Boolean(tokenStore.getAccessToken())
+        : false;
+    } finally {
+      refreshRequest = null;
+    }
+  })();
+
+  return refreshRequest;
 }
 
 export const apiClient = {

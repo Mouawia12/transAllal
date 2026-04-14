@@ -39,7 +39,7 @@ export default function RootLayout() {
       <ThemeProvider value={navigationTheme}>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(auth)/sign-in" />
           <Stack.Screen name="(driver)" />
         </Stack>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

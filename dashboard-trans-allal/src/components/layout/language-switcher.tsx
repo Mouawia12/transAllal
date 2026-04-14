@@ -3,24 +3,42 @@
 import { Languages } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
+import { ManagementActionButton } from '../shared/management-ui';
+import { cn } from '../../lib/utils/cn';
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ className }: { className?: string }) {
   const locale = useLocale();
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const toggle = () => {
     const next = locale === 'ar' ? 'en' : 'ar';
     document.cookie = `NEXT_LOCALE=${next};path=/;max-age=31536000`;
-    router.refresh();
+    startTransition(() => {
+      router.refresh();
+    });
   };
 
   return (
-    <button
+    <ManagementActionButton
       onClick={toggle}
-      className="inline-flex items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-white/70 px-3.5 py-2.5 text-sm font-medium text-[var(--color-ink)] shadow-sm transition-colors hover:bg-white"
+      loading={isPending}
+      tone="neutral"
+      size="md"
+      aria-label={locale === 'ar' ? 'Switch to English' : 'التبديل إلى العربية'}
+      className={cn(
+        'rounded-2xl bg-white/72 px-3 py-2 text-sm font-medium text-[var(--color-ink)] shadow-sm',
+        className,
+      )}
     >
-      <Languages size={16} className="text-[var(--color-brand)]" />
-      {locale === 'ar' ? 'English' : 'العربية'}
-    </button>
+      {!isPending ? (
+        <Languages size={16} className="text-[var(--color-brand)]" />
+      ) : null}
+      <span className="hidden sm:inline">
+        {locale === 'ar' ? 'English' : 'العربية'}
+      </span>
+      <span className="sm:hidden">{locale === 'ar' ? 'EN' : 'AR'}</span>
+    </ManagementActionButton>
   );
 }

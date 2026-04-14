@@ -7,8 +7,8 @@ export function useCompanyScope() {
   const user = useAuthStore((state) => state.user);
   const hasHydrated = useAuthStore((state) => state.hasHydrated);
   const hydrated = useCompanyScopeStore((state) => state.hydrated);
-  const selectedCompanyId = useCompanyScopeStore(
-    (state) => state.selectedCompanyId,
+  const selectedCompanyId = useCompanyScopeStore((state) =>
+    user?.id ? state.selectedCompanyIds[user.id] ?? null : null,
   );
 
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';

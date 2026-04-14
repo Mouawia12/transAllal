@@ -1,16 +1,45 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  BadgeCheck,
+  KeyRound,
+  Plus,
+  Radio,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CompanyScopeEmpty } from '../../../components/shared/company-scope-empty';
+import {
+  ManagementActionButton,
+  ManagementCallout,
+  ManagementCheckboxField,
+  ManagementDesktopTable,
+  ManagementField,
+  ManagementFormActions,
+  ManagementHero,
+  ManagementInputField,
+  MANAGEMENT_TABLE_CELL_CLASSNAME,
+  MANAGEMENT_TABLE_HEAD_CLASSNAME,
+  ManagementInlineState,
+  ManagementMobileCard,
+  ManagementMobileList,
+  ManagementPanel,
+  ManagementPageState,
+  ManagementRowsSkeleton,
+  ManagementStatCard,
+  ManagementTableSkeleton,
+  ManagementTableState,
+  PaginationBar,
+  SearchField,
+  ToneBadge,
+} from '../../../components/shared/management-ui';
 import { apiClient } from '../../../lib/api/client';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { useCompanyScope } from '../../../lib/company/use-company-scope';
-import type { Driver, ApiResponse } from '../../../types/shared';
-
-const INPUT_CLASSNAME =
-  'rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
+import type { ApiResponse, Driver } from '../../../types/shared';
 
 const initialDriverForm = {
   firstName: '',
@@ -21,6 +50,26 @@ const initialDriverForm = {
   initialPassword: '',
   isActive: true,
 };
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+function driverStatusTone(isActive: boolean) {
+  return isActive
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : 'border-slate-200 bg-slate-100 text-slate-600';
+}
+
+function connectionTone(isOnline: boolean) {
+  return isOnline
+    ? 'border-sky-200 bg-sky-50 text-sky-700'
+    : 'border-slate-200 bg-slate-100 text-slate-600';
+}
 
 export default function DriversPage() {
   const t = useTranslations();
@@ -39,12 +88,13 @@ export default function DriversPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['drivers', companyId, page, search],
-    queryFn: () => apiClient.get<ApiResponse<Driver[]>>(ENDPOINTS.DRIVERS, {
-      companyId,
-      page,
-      limit: 20,
-      ...(search && { search }),
-    }),
+    queryFn: () =>
+      apiClient.get<ApiResponse<Driver[]>>(ENDPOINTS.DRIVERS, {
+        companyId,
+        page,
+        limit: 20,
+        ...(search && { search }),
+      }),
     enabled: !!companyId,
   });
 
@@ -99,15 +149,31 @@ export default function DriversPage() {
     },
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   if (!hasHydrated) {
-    return <p className="text-sm text-gray-400">{t('loading')}</p>;
+    return (
+      <ManagementPageState
+        title={t('ui_state.loading_title')}
+        description={t('ui_state.loading_description')}
+      />
+    );
   }
 
   if (!user || !companyId) {
     return <CompanyScopeEmpty />;
   }
 
+  const drivers = data?.data ?? [];
+  const totalDrivers = data?.meta?.total ?? drivers.length;
+  const totalPages = data?.meta?.totalPages ?? 1;
+  const activeDrivers = drivers.filter((driver) => driver.isActive).length;
+  const inactiveDrivers = drivers.length - activeDrivers;
+  const onlineDrivers = drivers.filter((driver) => driver.isOnline).length;
   const activeMutation = isEditing ? updateMutation : createMutation;
+  const showActions = canManageDrivers;
 
   const resetForm = () => {
     setShowCreate(false);
@@ -148,143 +214,200 @@ export default function DriversPage() {
     activeMutation.mutate(form);
   };
 
-  const showActions = canManageDrivers;
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('nav.drivers')}</h1>
-        {canManageDrivers && (
-          <button
-            onClick={() => {
-              if (showCreate && !isEditing) {
-                resetForm();
-                return;
-              }
-              startCreate();
-            }}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-          >
-            {showCreate && !isEditing ? t('cancel') : t('create_driver')}
-          </button>
-        )}
-      </div>
-      {createdPassword && (
-        <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
-          <div>
-            <p className="font-semibold">{t('temporary_password')}</p>
-            <p className="mt-1 font-mono text-base">{createdPassword}</p>
-            <p className="mt-2 text-xs opacity-80">{t('temporary_password_help')}</p>
+    <div className="space-y-5 md:space-y-6">
+      <ManagementHero
+        eyebrow={t('drivers_page.eyebrow')}
+        title={t('nav.drivers')}
+        description={t('drivers_page.description')}
+        className="bg-[linear-gradient(135deg,#0c1820_0%,#163149_48%,#22566e_100%)]"
+        actions={
+          canManageDrivers ? (
+            <ManagementActionButton
+              onClick={() => {
+                if (showCreate && !isEditing) {
+                  resetForm();
+                  return;
+                }
+
+                startCreate();
+              }}
+              tone="hero"
+              size="md"
+              className="py-3"
+            >
+              {showCreate && !isEditing ? <X size={16} /> : <Plus size={16} />}
+              {showCreate && !isEditing ? t('cancel') : t('create_driver')}
+            </ManagementActionButton>
+          ) : null
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-3">
+          <ManagementStatCard
+            icon={UserRound}
+            label={t('drivers_page.visible')}
+            value={drivers.length}
+            note={t('drivers_page.visible_note')}
+          />
+          <ManagementStatCard
+            icon={Radio}
+            label={t('drivers_page.online_in_view')}
+            value={onlineDrivers}
+            note={t('drivers_page.online_note')}
+            toneClassName="bg-sky-400/18 text-sky-50"
+          />
+          <ManagementStatCard
+            icon={BadgeCheck}
+            label={t('drivers_page.active_in_view')}
+            value={activeDrivers}
+            note={t('drivers_page.active_note')}
+            toneClassName="bg-emerald-400/18 text-emerald-50"
+          />
+        </div>
+      </ManagementHero>
+
+      {createdPassword ? (
+        <div className="flex flex-col gap-3 rounded-[28px] border border-amber-200 bg-[linear-gradient(180deg,#fff7e8_0%,#fff3d6_100%)] p-5 text-amber-950 shadow-[var(--shadow-panel)] md:flex-row md:items-start md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl bg-amber-200/70 p-3 text-amber-900">
+              <KeyRound size={18} />
+            </div>
+            <div>
+              <p className="font-semibold">{t('temporary_password')}</p>
+              <p className="mt-1 font-mono text-lg">{createdPassword}</p>
+              <p className="mt-2 text-sm leading-6 text-amber-900/80">
+                {t('temporary_password_help')}
+              </p>
+            </div>
           </div>
-          <button
+          <ManagementActionButton
             onClick={() => setCreatedPassword(null)}
-            className="text-xs font-medium underline underline-offset-4"
+            tone="neutral"
+            className="border-amber-300 bg-white/70 text-amber-900 hover:bg-white"
           >
             {t('close_notice')}
-          </button>
+          </ManagementActionButton>
         </div>
-      )}
-      {canManageDrivers && showCreate && (
-        <form
-          onSubmit={handleCreate}
-          className="grid gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950 lg:grid-cols-2"
+      ) : null}
+
+      {canManageDrivers && showCreate ? (
+        <ManagementPanel
+          eyebrow={isEditing ? t('edit') : t('create')}
+          title={
+            isEditing
+              ? t('drivers_page.form_edit_title')
+              : t('drivers_page.form_create_title')
+          }
+          description={
+            isEditing
+              ? t('drivers_page.form_edit_description')
+              : t('drivers_page.form_create_description')
+          }
+          headerSlot={
+            <ToneBadge
+              label={isEditing ? t('update_driver') : t('create_driver')}
+              toneClassName="border-[rgba(12,107,88,0.18)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
+            />
+          }
         >
-          <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('first_name')}</span>
-            <input
-              required
-              value={form.firstName}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, firstName: event.target.value }))
-              }
-              className={INPUT_CLASSNAME}
+          <form onSubmit={handleCreate} aria-busy={activeMutation.isPending}>
+            <fieldset
+              disabled={activeMutation.isPending}
+              className="grid gap-4 lg:grid-cols-2"
+            >
+            <ManagementField label={t('first_name')}>
+              <ManagementInputField
+                required
+                value={form.firstName}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, firstName: event.target.value }))
+                }
+              />
+            </ManagementField>
+            <ManagementField label={t('last_name')}>
+              <ManagementInputField
+                required
+                value={form.lastName}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, lastName: event.target.value }))
+                }
+              />
+            </ManagementField>
+            <ManagementField label={t('phone')}>
+              <ManagementInputField
+                required
+                value={form.phone}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, phone: event.target.value }))
+                }
+              />
+            </ManagementField>
+            <ManagementField label={t('license_number')}>
+              <ManagementInputField
+                required
+                value={form.licenseNumber}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    licenseNumber: event.target.value,
+                  }))
+                }
+              />
+            </ManagementField>
+            <ManagementField label={t('license_expiry')}>
+              <ManagementInputField
+                required
+                type="date"
+                value={form.licenseExpiry}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    licenseExpiry: event.target.value,
+                  }))
+                }
+              />
+            </ManagementField>
+            {!isEditing ? (
+              <ManagementField
+                label={t('initial_password')}
+                optionalLabel={t('optional')}
+              >
+                <ManagementInputField
+                  value={form.initialPassword}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      initialPassword: event.target.value,
+                    }))
+                  }
+                />
+              </ManagementField>
+            ) : null}
+
+            <ManagementCallout
+              className="lg:col-span-2"
+              tone="info"
+              description={t('temporary_password_help')}
             />
-          </label>
-          <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('last_name')}</span>
-            <input
-              required
-              value={form.lastName}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, lastName: event.target.value }))
-              }
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('phone')}</span>
-            <input
-              required
-              value={form.phone}
-              onChange={(event) =>
-                setForm((current) => ({ ...current, phone: event.target.value }))
-              }
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('license_number')}</span>
-            <input
-              required
-              value={form.licenseNumber}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  licenseNumber: event.target.value,
-                }))
-              }
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('license_expiry')}</span>
-            <input
-              required
-              type="date"
-              value={form.licenseExpiry}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  licenseExpiry: event.target.value,
-                }))
-              }
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-            <span>
-              {t('initial_password')} <span className="text-xs opacity-70">({t('optional')})</span>
-            </span>
-            <input
-              value={form.initialPassword}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  initialPassword: event.target.value,
-                }))
-              }
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <div className="lg:col-span-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t('temporary_password_help')}
-            </p>
-          </div>
-          {createMutation.error instanceof Error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 lg:col-span-2">
-              {createMutation.error.message}
-            </div>
-          )}
-          {updateMutation.error instanceof Error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 lg:col-span-2">
-              {updateMutation.error.message}
-            </div>
-          )}
-          {isEditing && (
-            <label className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-300 lg:col-span-2">
-              <input
-                type="checkbox"
+
+            {createMutation.error instanceof Error ? (
+              <ManagementCallout
+                className="lg:col-span-2"
+                tone="danger"
+                description={createMutation.error.message}
+              />
+            ) : null}
+
+            {updateMutation.error instanceof Error ? (
+              <ManagementCallout
+                className="lg:col-span-2"
+                tone="danger"
+                description={updateMutation.error.message}
+              />
+            ) : null}
+
+            {isEditing ? (
+              <ManagementCheckboxField
                 checked={form.isActive}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -292,115 +415,237 @@ export default function DriversPage() {
                     isActive: event.target.checked,
                   }))
                 }
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                label={t('active')}
+                className="lg:col-span-2"
               />
-              <span>{t('active')}</span>
-            </label>
-          )}
-          <div className="flex items-center justify-end gap-3 lg:col-span-2">
-            <button
-              type="button"
-              onClick={() => {
-                resetForm();
-              }}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
-            >
-              {t('cancel')}
-            </button>
-            <button
-              type="submit"
-              disabled={activeMutation.isPending}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {activeMutation.isPending
-                ? t('loading')
-                : isEditing
-                  ? t('update_driver')
-                  : t('create_driver')}
-            </button>
-          </div>
-        </form>
-      )}
-      <div className="flex gap-3">
-        <input
-          placeholder={t('search')}
+            ) : null}
+
+            <ManagementFormActions className="lg:col-span-2">
+              <ManagementActionButton tone="neutral" size="md" onClick={resetForm}>
+                {t('cancel')}
+              </ManagementActionButton>
+              <ManagementActionButton
+                type="submit"
+                loading={activeMutation.isPending}
+                tone="solid"
+                size="md"
+              >
+                {isEditing ? t('update_driver') : t('create_driver')}
+              </ManagementActionButton>
+            </ManagementFormActions>
+            </fieldset>
+          </form>
+        </ManagementPanel>
+      ) : null}
+
+      <ManagementPanel
+        title={t('drivers_page.filters_title')}
+        description={t('drivers_page.filters_description')}
+        bodyClassName="space-y-4"
+        headerSlot={
+          <ToneBadge
+            label={`${t('reports.total')}: ${totalDrivers}`}
+            toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+          />
+        }
+      >
+        <SearchField
           value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="px-3 py-2 border rounded-lg text-sm w-64 bg-white dark:bg-gray-800 dark:border-gray-600"
+          onChange={setSearch}
+          placeholder={t('drivers_page.search_placeholder')}
+          hint={t('drivers_page.search_hint')}
         />
-      </div>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-700">
-            <tr>
-              {[t('name'), t('phone'), t('license_number'), t('license_expiry'), t('status'), t('go_online'), ...(showActions ? [t('actions')] : [])].map(h => (
-                <th key={h} className="text-start px-4 py-3 font-medium text-gray-600 dark:text-gray-300">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {isLoading && (
-              <tr><td colSpan={showActions ? 7 : 6} className="text-center py-8 text-gray-400">{t('loading')}</td></tr>
-            )}
-            {!isLoading && (data?.data?.length ?? 0) === 0 && (
-              <tr><td colSpan={showActions ? 7 : 6} className="text-center py-8 text-gray-400">{t('no_data')}</td></tr>
-            )}
-            {data?.data?.map(d => (
-              <tr key={d.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{d.firstName} {d.lastName}</td>
-                <td className="px-4 py-3 text-gray-500">{d.phone}</td>
-                <td className="px-4 py-3 text-gray-500">{d.licenseNumber}</td>
-                <td className="px-4 py-3 text-gray-500">{new Date(d.licenseExpiry).toLocaleDateString()}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {d.isActive ? t('active') : t('inactive')}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${d.isOnline ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {d.isOnline ? t('tracking.online') : t('tracking.offline')}
-                  </span>
-                </td>
-                {showActions && (
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => startEdit(d)}
-                        className="text-blue-600 hover:text-blue-800 text-xs"
-                      >
+      </ManagementPanel>
+
+      <ManagementPanel
+        eyebrow={t('nav.drivers')}
+        title={t('drivers_page.table_title')}
+        description={t('drivers_page.table_description')}
+        bodyClassName="p-0"
+      >
+        <ManagementMobileList>
+          {isLoading ? (
+            <ManagementRowsSkeleton count={3} detailColumns={2} />
+          ) : null}
+
+          {!isLoading && drivers.length === 0 ? (
+            <ManagementInlineState
+              title={t('ui_state.empty_title')}
+              description={t('ui_state.empty_description')}
+            />
+          ) : null}
+
+          {!isLoading &&
+            drivers.map((driver) => (
+              <ManagementMobileCard
+                key={driver.id}
+                title={`${driver.firstName} ${driver.lastName}`}
+                subtitle={driver.phone}
+                headerSlot={
+                  <div className="flex flex-col items-end gap-2">
+                    <ToneBadge
+                      label={driver.isActive ? t('active') : t('inactive')}
+                      toneClassName={driverStatusTone(driver.isActive)}
+                    />
+                    <ToneBadge
+                      label={
+                        driver.isOnline ? t('tracking.online') : t('tracking.offline')
+                      }
+                      toneClassName={connectionTone(driver.isOnline)}
+                    />
+                  </div>
+                }
+                footer={
+                  showActions ? (
+                    <>
+                      <ManagementActionButton onClick={() => startEdit(driver)}>
                         {t('edit')}
-                      </button>
-                      <button
+                      </ManagementActionButton>
+                      <ManagementActionButton
                         onClick={() => {
                           if (confirm(t('confirm_delete'))) {
-                            deleteMutation.mutate(d.id);
+                            deleteMutation.mutate(driver.id);
                           }
                         }}
-                        className="text-red-500 hover:text-red-700 text-xs"
+                        tone="danger"
                       >
                         {t('delete')}
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {(data?.meta?.totalPages ?? 1) > 1 && (
-          <div className="flex justify-center gap-2 p-4">
-            {Array.from({ length: data!.meta!.totalPages }, (_, i) => (
-              <button
-                key={i}
-                onClick={() => setPage(i + 1)}
-                className={`px-3 py-1 rounded ${page === i + 1 ? 'bg-blue-600 text-white' : 'border text-gray-600 hover:bg-gray-50'}`}
+                      </ManagementActionButton>
+                    </>
+                  ) : undefined
+                }
               >
-                {i + 1}
-              </button>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                      {t('license_number')}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--color-ink)]">
+                      {driver.licenseNumber}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                      {t('license_expiry')}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--color-ink)]">
+                      {formatDate(driver.licenseExpiry)}
+                    </p>
+                  </div>
+                </div>
+              </ManagementMobileCard>
             ))}
-          </div>
-        )}
-      </div>
+        </ManagementMobileList>
+
+        <ManagementDesktopTable>
+          <table className="min-w-full text-sm" aria-busy={isLoading}>
+            <caption className="sr-only">
+              {t('drivers_page.table_title')}. {t('drivers_page.table_description')}
+            </caption>
+            <thead className="bg-[rgba(15,23,42,0.04)]">
+              <tr>
+                {[
+                  t('name'),
+                  t('phone'),
+                  t('license_number'),
+                  t('license_expiry'),
+                  t('status'),
+                  t('go_online'),
+                  ...(showActions ? [t('actions')] : []),
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    scope="col"
+                    className={MANAGEMENT_TABLE_HEAD_CLASSNAME}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[rgba(15,23,42,0.08)]">
+              {isLoading ? (
+                <ManagementTableSkeleton
+                  colSpan={showActions ? 7 : 6}
+                  rows={4}
+                />
+              ) : null}
+
+              {!isLoading && drivers.length === 0 ? (
+                <ManagementTableState
+                  colSpan={showActions ? 7 : 6}
+                  title={t('ui_state.empty_title')}
+                  description={t('ui_state.empty_description')}
+                />
+              ) : null}
+
+              {drivers.map((driver) => (
+                <tr
+                  key={driver.id}
+                  className="transition hover:bg-white/70 motion-reduce:transition-none"
+                >
+                  <th
+                    scope="row"
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} font-semibold text-[var(--color-ink)]`}
+                  >
+                    {driver.firstName} {driver.lastName}
+                  </th>
+                  <td
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
+                  >
+                    {driver.phone}
+                  </td>
+                  <td
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
+                  >
+                    {driver.licenseNumber}
+                  </td>
+                  <td
+                    className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
+                  >
+                    {formatDate(driver.licenseExpiry)}
+                  </td>
+                  <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                    <ToneBadge
+                      label={driver.isActive ? t('active') : t('inactive')}
+                      toneClassName={driverStatusTone(driver.isActive)}
+                    />
+                  </td>
+                  <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                    <ToneBadge
+                      label={
+                        driver.isOnline ? t('tracking.online') : t('tracking.offline')
+                      }
+                      toneClassName={connectionTone(driver.isOnline)}
+                    />
+                  </td>
+                  {showActions ? (
+                    <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ManagementActionButton onClick={() => startEdit(driver)}>
+                          {t('edit')}
+                        </ManagementActionButton>
+                        <ManagementActionButton
+                          onClick={() => {
+                            if (confirm(t('confirm_delete'))) {
+                              deleteMutation.mutate(driver.id);
+                            }
+                          }}
+                          tone="danger"
+                        >
+                          {t('delete')}
+                        </ManagementActionButton>
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ManagementDesktopTable>
+
+        <PaginationBar page={page} totalPages={totalPages} onChange={setPage} />
+      </ManagementPanel>
     </div>
   );
 }

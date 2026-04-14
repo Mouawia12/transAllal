@@ -2,12 +2,12 @@
 
 This workspace is organized as:
 
-- one root repository for workspace-level automation and documentation
-- one child repository for `backend-trans-allal`
-- one child repository for `dashboard-trans-allal`
-- one child repository for `app-trans-allal`
+- one root repository that contains the full workspace
+- `backend-trans-allal`
+- `dashboard-trans-allal`
+- `app-trans-allal`
 
-Each project remains an independent Git repository. The root repository also keeps a workspace-level snapshot of the three child project directories. This workspace does not use submodules and is not a monorepo.
+The full workspace is now managed by the root Git repository only. The child project folders are normal directories inside the root repository and do not have their own `.git` directories.
 
 ## Repository Layout
 
@@ -20,36 +20,31 @@ Each project remains an independent Git repository. The root repository also kee
 
 ### `./status-all.sh`
 
-Shows `git status` for:
-
-- root workspace repo
-- backend repo
-- dashboard repo
-- app repo
+Shows `git status` for the single root workspace repository.
 
 ### `./pull-all.sh`
 
-Runs `git pull origin main` for all four repositories in the same order.
+Runs `git pull origin main` for the single root workspace repository.
 
 ### `./push-all.sh`
 
-Commits and pushes all four repositories in the same order.
+Commits and pushes the single root workspace repository.
 
 Examples:
 
 ```bash
 ./push-all.sh
-./push-all.sh "chore: update workspace and child repositories"
+./push-all.sh "chore: update workspace"
 ```
 
 If no commit message is passed, the script uses:
 
 ```text
-update all repositories
+update workspace repository
 ```
 
 ## Notes
 
-- The root repo is intentionally separate from the three child repos.
-- The root repo now includes the child project source trees as part of the workspace snapshot.
+- The root repository is the only Git repository in this workspace.
+- Run Git commands from the root when you want to update the whole project.
 - Use `GIT_WORKFLOW.md` for the daily workflow.

@@ -1,16 +1,43 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import {
+  Radar,
+  Route as RouteIcon,
+  UserRound,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import Map, { Marker, NavigationControl } from 'react-map-gl/mapbox';
 import { CompanyScopeEmpty } from '../../../components/shared/company-scope-empty';
+import {
+  ManagementDetailTile,
+  ManagementField,
+  ManagementHero,
+  ManagementIconBadge,
+  ManagementInlineState,
+  ManagementPanel,
+  ManagementPageState,
+  ManagementRowsSkeleton,
+  ManagementSelectField,
+  ManagementSegmentedControl,
+  ManagementStatCard,
+  ManagementSurfaceCard,
+  SearchField,
+  ToneBadge,
+} from '../../../components/shared/management-ui';
 import { apiClient } from '../../../lib/api/client';
-import { dashboardRuntimeConfig } from '../../../lib/api/config';
+import {
+  dashboardRuntimeConfig,
+  hasUsableMapboxToken,
+} from '../../../lib/api/config';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { realtimeClient } from '../../../lib/api/realtime-client';
 import { tokenStore } from '../../../lib/auth/token-store';
 import { useCompanyScope } from '../../../lib/company/use-company-scope';
+import { cn } from '../../../lib/utils/cn';
 import type { ApiResponse, LiveDriver } from '../../../types/shared';
 
 type Mode = 'live' | 'fleet';
@@ -32,9 +59,6 @@ const DEFAULT_VIEW = {
   latitude: 28.03,
   zoom: 4.2,
 };
-
-const SUMMARY_CARD_CLASSNAME =
-  'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950';
 
 function normalizeNullableNumber(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === '') {
@@ -79,6 +103,20 @@ function normalizeHistoryPoint(point: DriverHistoryPoint): DriverHistoryPoint {
   };
 }
 
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
 function getDriverActivityLabel(
   t: ReturnType<typeof useTranslations>,
   driver: LiveDriver,
@@ -94,6 +132,30 @@ function getDriverActivityLabel(
   return t('tracking.offline');
 }
 
+function driverTone(driver: LiveDriver) {
+  if (driver.isOnline && driver.tripId) {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  }
+
+  if (driver.isOnline) {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
+
+  return 'border-slate-200 bg-slate-100 text-slate-600';
+}
+
+function markerClassName(driver: LiveDriver) {
+  if (driver.isOnline && driver.tripId) {
+    return 'bg-emerald-500';
+  }
+
+  if (driver.isOnline) {
+    return 'bg-amber-400';
+  }
+
+  return 'bg-slate-400';
+}
+
 export default function TrackingPage() {
   const t = useTranslations();
   const { user, hasHydrated, companyId } = useCompanyScope();
@@ -103,9 +165,14 @@ export default function TrackingPage() {
   const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [liveMap, setLiveMap] = useState<Record<string, LiveDriver>>({});
+  const [mapUnavailable, setMapUnavailable] = useState(false);
   const [viewState, setViewState] = useState(DEFAULT_VIEW);
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
-  const hasMapToken = Boolean(dashboardRuntimeConfig.mapboxToken);
+  const hasMapToken = hasUsableMapboxToken(dashboardRuntimeConfig.mapboxToken);
+  const showLiveMap =
+    dashboardRuntimeConfig.mapProvider === 'mapbox' &&
+    hasMapToken &&
+    !mapUnavailable;
 
   const { data: fleetData, isLoading } = useQuery({
     queryKey: ['tracking', 'fleet', companyId],
@@ -343,9 +410,20 @@ export default function TrackingPage() {
   }, [allDrivers]);
 
   const historyPoints = historyData?.data ?? [];
+  const recentHistory = historyPoints.slice().reverse();
+  const activeFilterCount = [
+    mode !== 'live',
+    statusFilter !== 'all',
+    search.trim(),
+  ].filter(Boolean).length;
 
   if (!hasHydrated) {
-    return <p className="text-sm text-gray-400">{t('loading')}</p>;
+    return (
+      <ManagementPageState
+        title={t('ui_state.loading_title')}
+        description={t('ui_state.loading_description')}
+      />
+    );
   }
 
   if (!user || !companyId) {
@@ -353,202 +431,188 @@ export default function TrackingPage() {
   }
 
   return (
-    <div className="grid h-[calc(100vh-5.5rem)] gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-      <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-        <div className="border-b border-gray-200 p-4 dark:border-gray-800">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t('nav.tracking')}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {t('tracking.description')}
-          </p>
+    <div className="space-y-5 md:space-y-6">
+      <ManagementHero
+        eyebrow={t('tracking.eyebrow')}
+        title={t('nav.tracking')}
+        description={t('tracking.description')}
+        className="bg-[linear-gradient(135deg,#0c1820_0%,#19334b_48%,#1e6c6b_100%)]"
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ManagementStatCard
+            icon={Radar}
+            label={t('tracking.summary_total')}
+            value={summary.tracked}
+            note={t('tracking.tracked_note')}
+          />
+          <ManagementStatCard
+            icon={Wifi}
+            label={t('tracking.summary_online')}
+            value={summary.online}
+            note={t('tracking.online_note')}
+            toneClassName="bg-emerald-400/18 text-emerald-50"
+          />
+          <ManagementStatCard
+            icon={WifiOff}
+            label={t('tracking.summary_offline')}
+            value={summary.offline}
+            note={t('tracking.offline_note')}
+            toneClassName="bg-slate-300/18 text-slate-100"
+          />
+          <ManagementStatCard
+            icon={RouteIcon}
+            label={t('tracking.summary_in_trip')}
+            value={summary.inTrip}
+            note={t('tracking.in_trip_note')}
+            toneClassName="bg-sky-400/18 text-sky-50"
+          />
         </div>
+      </ManagementHero>
 
-        <div className="space-y-4 border-b border-gray-200 p-4 dark:border-gray-800">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1 dark:bg-gray-900">
-            {(['live', 'fleet'] as const).map((nextMode) => (
-              <button
-                key={nextMode}
-                onClick={() => setMode(nextMode)}
-                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  mode === nextMode
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'
-                }`}
-              >
-                {nextMode === 'live'
-                  ? t('tracking.live_only')
-                  : t('tracking.fleet_overview')}
-              </button>
-            ))}
+      <div className="grid gap-5 md:gap-6 lg:grid-cols-[290px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+        <ManagementPanel
+          title={t('tracking.driver_list_title')}
+          description={t('tracking.driver_list_description')}
+          bodyClassName="space-y-4 p-0"
+          headerSlot={
+            <ToneBadge
+              label={`${t('tracking.filtered_results')}: ${displayedDrivers.length}`}
+              toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+            />
+          }
+        >
+          <div className="space-y-4 px-4 pt-4 md:px-5 md:pt-5">
+            <ManagementSegmentedControl
+              value={mode}
+              onChange={(value) => setMode(value as Mode)}
+              options={[
+                { value: 'live', label: t('tracking.live_only') },
+                { value: 'fleet', label: t('tracking.fleet_overview') },
+              ]}
+            />
+
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              placeholder={t('tracking.search_placeholder')}
+            />
+
+            <div className="grid gap-2">
+              <ManagementField label={t('status')}>
+                <ManagementSelectField
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as StatusFilter)
+                  }
+                >
+                  <option value="all">{t('tracking.all_statuses')}</option>
+                  <option value="online">{t('tracking.online')}</option>
+                  <option value="offline">{t('tracking.offline')}</option>
+                  <option value="trip">{t('tracking.with_active_trip')}</option>
+                </ManagementSelectField>
+              </ManagementField>
+            </div>
+
+            {activeFilterCount > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                <ToneBadge
+                  label={`${t('tracking.active_filters')}: ${activeFilterCount}`}
+                  toneClassName="border-[rgba(12,107,88,0.18)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
+                />
+              </div>
+            ) : null}
           </div>
 
-          <div className="grid gap-3">
-            <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-              <span>{t('search')}</span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('tracking.search_placeholder')}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
-              />
-            </label>
+          <div className="mt-5 min-h-0 max-h-[360px] overflow-y-auto border-t border-[rgba(15,23,42,0.08)] sm:max-h-[420px] lg:max-h-[calc(100dvh-18rem)] 2xl:max-h-[720px]">
+            {isLoading ? (
+              <div className="px-4 py-4 md:px-5">
+                <ManagementRowsSkeleton
+                  count={4}
+                  itemClassName="p-4"
+                />
+              </div>
+            ) : null}
 
-            <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-              <span>{t('status')}</span>
-              <select
-                value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value as StatusFilter)
-                }
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
-              >
-                <option value="all">{t('tracking.all_statuses')}</option>
-                <option value="online">{t('tracking.online')}</option>
-                <option value="offline">{t('tracking.offline')}</option>
-                <option value="trip">{t('tracking.with_active_trip')}</option>
-              </select>
-            </label>
-          </div>
-        </div>
+            {!isLoading && displayedDrivers.length === 0 ? (
+              <div className="px-4 py-4 md:px-5">
+                <ManagementInlineState
+                  title={
+                    mode === 'live'
+                      ? t('tracking.no_active_drivers')
+                      : t('tracking.no_tracked_drivers')
+                  }
+                  description={t('ui_state.empty_description')}
+                />
+              </div>
+            ) : null}
 
-        <div className="grid grid-cols-2 gap-2 border-b border-gray-200 p-4 dark:border-gray-800">
-          <div className="rounded-2xl bg-gray-100 px-3 py-3 dark:bg-gray-900">
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {t('tracking.summary_total')}
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {summary.tracked}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-emerald-50 px-3 py-3 dark:bg-emerald-950/30">
-            <p className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-              {t('tracking.summary_online')}
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {summary.online}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-100 px-3 py-3 dark:bg-slate-900">
-            <p className="text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300">
-              {t('tracking.summary_offline')}
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {summary.offline}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-blue-50 px-3 py-3 dark:bg-blue-950/30">
-            <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">
-              {t('tracking.summary_in_trip')}
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
-              {summary.inTrip}
-            </p>
-          </div>
-        </div>
+            {displayedDrivers.map((driver) => {
+              const isSelected = driver.driverId === selectedDriver;
+              const statusLabel = getDriverActivityLabel(t, driver);
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {isLoading && (
-            <p className="px-4 py-8 text-center text-sm text-gray-400">
-              {t('loading')}
-            </p>
-          )}
-
-          {!isLoading && displayedDrivers.length === 0 && (
-            <p className="px-4 py-8 text-center text-sm text-gray-400">
-              {mode === 'live'
-                ? t('tracking.no_active_drivers')
-                : t('tracking.no_tracked_drivers')}
-            </p>
-          )}
-
-          {displayedDrivers.map((driver) => {
-            const isSelected = driver.driverId === selectedDriver;
-            const statusLabel = getDriverActivityLabel(t, driver);
-
-            return (
-              <button
-                key={driver.driverId}
-                onClick={() => setSelectedDriver(driver.driverId)}
-                className={`flex w-full flex-col gap-2 border-b border-gray-100 px-4 py-4 text-start transition hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900/70 ${
-                  isSelected ? 'bg-blue-50 dark:bg-blue-950/20' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                      {driver.firstName} {driver.lastName}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
-                      {statusLabel}
-                    </p>
+              return (
+                <button
+                  key={driver.driverId}
+                  type="button"
+                  onClick={() => setSelectedDriver(driver.driverId)}
+                  aria-pressed={isSelected}
+                  className={cn(
+                    'flex w-full flex-col gap-3 border-b border-[rgba(15,23,42,0.08)] px-4 py-3.5 text-start transition hover:bg-white/70 motion-reduce:transition-none md:px-5 md:py-4',
+                    isSelected &&
+                      'bg-[rgba(12,107,88,0.08)] hover:bg-[rgba(12,107,88,0.12)]',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--color-ink)]">
+                        {driver.firstName} {driver.lastName}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-[var(--color-muted)]">
+                        {statusLabel}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        'mt-1 h-2.5 w-2.5 rounded-full',
+                        markerClassName(driver),
+                      )}
+                    />
                   </div>
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      driver.isOnline
-                        ? driver.tripId
-                          ? 'bg-emerald-500'
-                          : 'bg-yellow-400'
-                        : 'bg-gray-400'
-                    }`}
-                  />
-                </div>
 
-                <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
-                  <span>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <ToneBadge
+                      label={statusLabel}
+                      toneClassName={driverTone(driver)}
+                    />
+                    <span className="text-xs text-[var(--color-muted)]">
+                      {driver.lastSeenAt
+                        ? new Date(driver.lastSeenAt).toLocaleTimeString()
+                        : '—'}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-[var(--color-muted)]">
                     {t('speed')}: {driver.speedKmh ?? '—'} km/h
-                  </span>
-                  <span>
-                    {driver.lastSeenAt
-                      ? new Date(driver.lastSeenAt).toLocaleTimeString()
-                      : '—'}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </aside>
-
-      <section className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="grid min-h-0 gap-4">
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className={SUMMARY_CARD_CLASSNAME}>
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {t('tracking.summary_total')}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-                {summary.tracked}
-              </p>
-            </div>
-            <div className={SUMMARY_CARD_CLASSNAME}>
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {t('tracking.summary_online')}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-                {summary.online}
-              </p>
-            </div>
-            <div className={SUMMARY_CARD_CLASSNAME}>
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {t('tracking.summary_offline')}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-                {summary.offline}
-              </p>
-            </div>
-            <div className={SUMMARY_CARD_CLASSNAME}>
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                {t('tracking.summary_in_trip')}
-              </p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-                {summary.inTrip}
-              </p>
-            </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
+        </ManagementPanel>
 
-          <div className="relative min-h-[420px] flex-1 overflow-hidden rounded-[30px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            {hasMapToken ? (
+        <ManagementPanel
+          title={t('tracking.map_title')}
+          description={t('tracking.map_description')}
+          bodyClassName="p-0"
+          headerSlot={
+            <ToneBadge
+              label={selected ? `${selected.firstName} ${selected.lastName}` : t('tracking.select_driver')}
+              toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+            />
+          }
+        >
+          <div className="relative min-h-[360px] overflow-hidden sm:min-h-[420px] lg:min-h-[500px] 2xl:min-h-[620px]">
+            {showLiveMap ? (
               <Map
                 reuseMaps
                 mapboxAccessToken={dashboardRuntimeConfig.mapboxToken}
@@ -557,6 +621,7 @@ export default function TrackingPage() {
                 latitude={viewState.latitude}
                 zoom={viewState.zoom}
                 onMove={(event) => setViewState(event.viewState)}
+                onError={() => setMapUnavailable(true)}
               >
                 <NavigationControl position="top-right" />
 
@@ -570,17 +635,14 @@ export default function TrackingPage() {
                     <button
                       type="button"
                       onClick={() => setSelectedDriver(driver.driverId)}
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-lg transition ${
+                      aria-pressed={selectedDriver === driver.driverId}
+                      className={cn(
+                        'flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-lg transition motion-reduce:transition-none',
                         selectedDriver === driver.driverId
                           ? 'scale-125'
-                          : 'hover:scale-110'
-                      } ${
-                        driver.isOnline
-                          ? driver.tripId
-                            ? 'bg-emerald-500'
-                            : 'bg-yellow-400'
-                          : 'bg-gray-400'
-                      }`}
+                          : 'hover:scale-110',
+                        markerClassName(driver),
+                      )}
                       aria-label={`${driver.firstName} ${driver.lastName}`}
                     >
                       <span className="sr-only">
@@ -591,43 +653,40 @@ export default function TrackingPage() {
                 ))}
               </Map>
             ) : (
-              <div className="flex h-full flex-col justify-between bg-gradient-to-br from-slate-100 via-white to-slate-200 p-6 dark:from-slate-950 dark:via-gray-950 dark:to-slate-900">
+              <div className="flex h-full flex-col justify-between bg-[linear-gradient(135deg,#f2f7f6_0%,#ffffff_50%,#edf5ff_100%)] p-4 sm:p-6">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                    {t('nav.tracking')}
-                  </p>
-                  <h2 className="mt-3 text-2xl font-semibold text-gray-900 dark:text-white">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
                     {t('tracking.map_disabled_title')}
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                  </p>
+                  <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-muted)]">
                     {t('tracking.map_disabled_description')}
                   </p>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2">
                   {displayedDrivers.slice(0, 6).map((driver) => (
-                    <div
+                    <ManagementSurfaceCard
                       key={driver.driverId}
-                      className="rounded-2xl border border-white/60 bg-white/80 p-4 backdrop-blur dark:border-gray-800 dark:bg-gray-950/80"
+                      className="rounded-2xl border-white/70 bg-white/78 p-4 shadow-[var(--shadow-panel)] backdrop-blur"
                     >
-                      <p className="font-medium text-gray-900 dark:text-white">
+                      <p className="font-medium text-[var(--color-ink)]">
                         {driver.firstName} {driver.lastName}
                       </p>
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      <p className="mt-1 text-xs text-[var(--color-muted)]">
                         {driver.lat.toFixed(5)}, {driver.lng.toFixed(5)}
                       </p>
-                    </div>
+                    </ManagementSurfaceCard>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className="pointer-events-none absolute left-4 right-4 top-4 flex items-start justify-between gap-3">
-              <div className="pointer-events-auto max-w-md rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur dark:border-gray-800 dark:bg-gray-950/85">
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
+            <div className="pointer-events-none absolute left-3 right-3 top-3 flex items-start justify-between gap-3 sm:left-4 sm:right-4 sm:top-4">
+              <div className="pointer-events-auto max-w-[15rem] rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur sm:max-w-md">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
                   {t('tracking.location_stream')}
                 </p>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                <p className="mt-2 text-sm leading-6 text-[var(--color-ink)]">
                   {selected
                     ? `${selected.firstName} ${selected.lastName} · ${getDriverActivityLabel(
                         t,
@@ -638,164 +697,137 @@ export default function TrackingPage() {
               </div>
             </div>
           </div>
-        </div>
+        </ManagementPanel>
 
-        <div className="flex min-h-0 flex-col gap-4">
-          <div className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                  {t('tracking.current_position')}
-                </p>
-                <h2 className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">
-                  {selected
-                    ? `${selected.firstName} ${selected.lastName}`
-                    : t('tracking.select_driver')}
-                </h2>
-              </div>
-              {selected && (
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-medium ${
-                    selected.isOnline
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                  }`}
-                >
-                  {selected.isOnline
-                    ? t('tracking.online')
-                    : t('tracking.offline')}
-                </span>
-              )}
-            </div>
-
-            {selected ? (
-              <div className="mt-5 space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {t('tracking.coordinates')}
+        <div className="space-y-5 md:space-y-6 lg:col-span-2 2xl:col-span-1">
+          <ManagementPanel
+            eyebrow={t('tracking.current_position')}
+            title={t('tracking.current_position')}
+            description={t('tracking.current_position_description')}
+            headerSlot={
+              selected ? (
+                <ToneBadge
+                  label={selected.isOnline ? t('tracking.online') : t('tracking.offline')}
+                  toneClassName={driverTone(selected)}
+                />
+              ) : undefined
+            }
+            bodyClassName="space-y-4"
+          >
+            {!selected ? (
+              <ManagementInlineState
+                title={t('tracking.select_driver')}
+                description={t('ui_state.selection_description')}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <ManagementIconBadge icon={UserRound} size={18} />
+                  <div>
+                    <p className="text-lg font-semibold text-[var(--color-ink)]">
+                      {selected.firstName} {selected.lastName}
                     </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                      {selected.lat.toFixed(5)}, {selected.lng.toFixed(5)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {t('speed')}
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                      {selected.speedKmh ?? '—'} km/h
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {t('last_seen')}
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                      {selected.lastSeenAt
-                        ? new Date(selected.lastSeenAt).toLocaleString()
-                        : '—'}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      {t('status')}
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                    <p className="mt-1 text-sm text-[var(--color-muted)]">
                       {getDriverActivityLabel(t, selected)}
                     </p>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <p className="mt-5 text-sm text-gray-500 dark:text-gray-400">
-                {t('tracking.select_driver')}
-              </p>
-            )}
-          </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <div className="border-b border-gray-200 p-5 dark:border-gray-800">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                    {t('tracking.history')}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {t('tracking.history_description')}
-                  </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ManagementDetailTile
+                    label={t('tracking.coordinates')}
+                    value={`${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`}
+                  />
+                  <ManagementDetailTile
+                    label={t('speed')}
+                    value={`${selected.speedKmh ?? '—'} km/h`}
+                  />
+                  <ManagementDetailTile
+                    label={t('last_seen')}
+                    value={formatDateTime(selected.lastSeenAt)}
+                  />
+                  <ManagementDetailTile
+                    label={t('status')}
+                    value={getDriverActivityLabel(t, selected)}
+                  />
                 </div>
-                <select
-                  value={historyRange}
-                  onChange={(event) =>
-                    setHistoryRange(event.target.value as HistoryRange)
-                  }
-                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900"
+              </div>
+            )}
+          </ManagementPanel>
+
+          <ManagementPanel
+            eyebrow={t('tracking.history')}
+            title={t('tracking.history')}
+            description={t('tracking.history_description')}
+            headerSlot={
+              <ManagementSegmentedControl
+                value={historyRange}
+                onChange={(value) => setHistoryRange(value as HistoryRange)}
+                options={[
+                  { value: '6h', label: t('tracking.last_6_hours') },
+                  { value: '24h', label: t('tracking.last_24_hours') },
+                  { value: '7d', label: t('tracking.last_7_days') },
+                ]}
+                className="w-full min-w-[220px] max-w-[320px]"
+              />
+            }
+            bodyClassName="space-y-4"
+          >
+            {!selected ? (
+              <ManagementInlineState
+                title={t('tracking.select_driver')}
+                description={t('ui_state.selection_description')}
+              />
+            ) : null}
+
+            {selected && historyIsLoading ? (
+              <ManagementRowsSkeleton count={3} detailColumns={2} />
+            ) : null}
+
+            {selected && !historyIsLoading && recentHistory.length === 0 ? (
+              <ManagementInlineState
+                title={t('tracking.no_history')}
+                description={t('ui_state.empty_description')}
+              />
+            ) : null}
+
+            <div className="space-y-3">
+              {recentHistory.map((point) => (
+                <ManagementSurfaceCard
+                  key={point.id}
+                  className="p-4"
                 >
-                  <option value="6h">{t('tracking.last_6_hours')}</option>
-                  <option value="24h">{t('tracking.last_24_hours')}</option>
-                  <option value="7d">{t('tracking.last_7_days')}</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {!selected && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('tracking.select_driver')}
-                </p>
-              )}
-
-              {selected && historyIsLoading && (
-                <p className="text-sm text-gray-400">{t('loading')}</p>
-              )}
-
-              {selected && !historyIsLoading && historyPoints.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('tracking.no_history')}
-                </p>
-              )}
-
-              <div className="space-y-3">
-                {historyPoints
-                  .slice()
-                  .reverse()
-                  .map((point) => (
-                    <div
-                      key={point.id}
-                      className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
-                          </p>
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(point.recordedAt).toLocaleString()}
-                          </p>
-                        </div>
-                        {point.tripId && (
-                          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                            {t('tracking.with_active_trip')}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-                        <span>
-                          {t('speed')}: {point.speedKmh ?? '—'} km/h
-                        </span>
-                        <span>
-                          {t('tracking.heading')}: {point.heading ?? '—'}
-                        </span>
-                      </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-muted)]">
+                        {formatDateTime(point.recordedAt)}
+                      </p>
                     </div>
-                  ))}
-              </div>
+                    <ToneBadge
+                      label={`${t('tracking.heading')}: ${point.heading ?? '—'}`}
+                      toneClassName="border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.05)] text-[var(--color-ink)]"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <ManagementDetailTile
+                      label={t('speed')}
+                      value={`${point.speedKmh ?? '—'} km/h`}
+                    />
+                    <ManagementDetailTile
+                      label={t('tracking.coordinates')}
+                      value={`${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}
+                    />
+                  </div>
+                </ManagementSurfaceCard>
+              ))}
             </div>
-          </div>
+          </ManagementPanel>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

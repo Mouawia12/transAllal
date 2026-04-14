@@ -1,32 +1,65 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Activity,
+  CheckCircle2,
+  MapPinned,
+  OctagonX,
+  Plus,
+  Route as RouteIcon,
+  X,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
 } from 'react';
 import { CompanyScopeEmpty } from '../../../components/shared/company-scope-empty';
+import {
+  ManagementActionButton,
+  ManagementCallout,
+  ManagementDetailTile,
+  ManagementDesktopTable,
+  ManagementField,
+  ManagementFormActions,
+  ManagementHero,
+  ManagementIconBadge,
+  ManagementInputField,
+  MANAGEMENT_TABLE_CELL_CLASSNAME,
+  MANAGEMENT_TABLE_HEAD_CLASSNAME,
+  ManagementInlineState,
+  ManagementMobileCard,
+  ManagementMobileList,
+  ManagementPanel,
+  ManagementPageState,
+  ManagementRowsSkeleton,
+  ManagementSelectField,
+  ManagementStatCard,
+  ManagementSurfaceCard,
+  ManagementTableSkeleton,
+  ManagementTableState,
+  ManagementTextareaField,
+  PaginationBar,
+  SearchField,
+  ToneBadge,
+} from '../../../components/shared/management-ui';
 import { apiClient } from '../../../lib/api/client';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { useCompanyScope } from '../../../lib/company/use-company-scope';
+import { cn } from '../../../lib/utils/cn';
 import type { ApiResponse, Driver, Trip, Truck } from '../../../types/shared';
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-700',
-  IN_PROGRESS: 'bg-blue-100 text-blue-700',
-  COMPLETED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-700',
-};
-
-const INPUT_CLASSNAME =
-  'rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
-
-const CARD_CLASSNAME =
-  'rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950';
+const STATUS_OPTIONS = [
+  'PENDING',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
 
 const initialTripForm = {
   origin: '',
@@ -88,6 +121,33 @@ function toEndOfDayIso(value: string) {
   if (!value) return undefined;
   const date = new Date(`${value}T23:59:59.999`);
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function statusTone(status: Trip['status']) {
+  switch (status) {
+    case 'COMPLETED':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+    case 'IN_PROGRESS':
+      return 'border-sky-200 bg-sky-50 text-sky-700';
+    case 'CANCELLED':
+      return 'border-red-200 bg-red-50 text-red-700';
+    default:
+      return 'border-amber-200 bg-amber-50 text-amber-700';
+  }
 }
 
 export default function TripsPage() {
@@ -232,6 +292,8 @@ export default function TripsPage() {
       void qc.invalidateQueries({ queryKey: ['trips', companyId] });
     },
   });
+  const resetUpdateNotesMutationRef = useRef(updateNotesMutation.reset);
+  resetUpdateNotesMutationRef.current = updateNotesMutation.reset;
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete(ENDPOINTS.TRIP(id)),
@@ -259,11 +321,19 @@ export default function TripsPage() {
 
   useEffect(() => {
     setNoteDraft(selectedTrip?.notes ?? '');
-    updateNotesMutation.reset();
-  }, [selectedTrip?.id, selectedTrip?.notes, updateNotesMutation]);
+  }, [selectedTrip?.id, selectedTrip?.notes]);
+
+  useEffect(() => {
+    resetUpdateNotesMutationRef.current();
+  }, [selectedTrip?.id]);
 
   if (!hasHydrated) {
-    return <p className="text-sm text-gray-400">{t('loading')}</p>;
+    return (
+      <ManagementPageState
+        title={t('ui_state.loading_title')}
+        description={t('ui_state.loading_description')}
+      />
+    );
   }
 
   if (!user || !companyId) {
@@ -307,604 +377,748 @@ export default function TripsPage() {
   const selectedTrack = trackHistory?.data ?? [];
   const latestTrackPoint =
     selectedTrack.length > 0 ? selectedTrack[selectedTrack.length - 1] : null;
+  const reversedTrack = selectedTrack.slice().reverse();
   const noteChanged = noteDraft !== (selectedTrip?.notes ?? '');
+  const totalPages = data?.meta?.totalPages ?? 1;
+  const activeFilterCount = [
+    statusFilter,
+    driverFilter,
+    fromDate,
+    toDate,
+    search.trim(),
+  ].filter(Boolean).length;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t('nav.trips')}
-            </h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {t('trips_page.description')}
-            </p>
-          </div>
-          {canCreateTrips && (
-            <button
-              onClick={() => setShowCreate((value) => !value)}
-              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-            >
-              {showCreate ? t('cancel') : t('create_trip')}
-            </button>
-          )}
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-4">
-          <div className={CARD_CLASSNAME}>
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {t('trips_page.summary_total')}
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-              {tripSummary.total}
-            </p>
-          </div>
-          <div className={CARD_CLASSNAME}>
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {t('trips_page.summary_active')}
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-              {tripSummary.active}
-            </p>
-          </div>
-          <div className={CARD_CLASSNAME}>
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {t('trips_page.summary_completed')}
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-              {tripSummary.completed}
-            </p>
-          </div>
-          <div className={CARD_CLASSNAME}>
-            <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              {t('trips_page.summary_cancelled')}
-            </p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">
-              {tripSummary.cancelled}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950 md:grid-cols-2 xl:grid-cols-5">
-          <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('search')}</span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t('trips_page.search_placeholder')}
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('status')}</span>
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as TripStatusFilter)
-              }
-              className={INPUT_CLASSNAME}
-            >
-              <option value="">{t('trips_page.all_statuses')}</option>
-              {(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const).map(
-                (status) => (
-                  <option key={status} value={status}>
-                    {t(`status_values.${status}` as Parameters<typeof t>[0])}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('driver')}</span>
-            <select
-              value={driverFilter}
-              onChange={(event) => setDriverFilter(event.target.value)}
-              className={INPUT_CLASSNAME}
-            >
-              <option value="">{t('trips_page.all_drivers')}</option>
-              {(drivers?.data ?? []).map((driver) => (
-                <option key={driver.id} value={driver.id}>
-                  {driver.firstName} {driver.lastName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('reports.from')}</span>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(event) => setFromDate(event.target.value)}
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-gray-600 dark:text-gray-300">
-            <span>{t('reports.to')}</span>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(event) => setToDate(event.target.value)}
-              className={INPUT_CLASSNAME}
-            />
-          </label>
-          <div className="flex items-end justify-end md:col-span-2 xl:col-span-5">
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
-            >
-              {t('trips_page.reset_filters')}
-            </button>
-          </div>
-          {hasInvalidRange && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 md:col-span-2 xl:col-span-5">
-              {t('reports.invalid_range')}
-            </div>
-          )}
-        </div>
-
-        {canCreateTrips && showCreate && (
-          <form
-            onSubmit={handleCreate}
-            className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950 lg:grid-cols-2"
-          >
-            <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <span>{t('origin')}</span>
-              <input
-                required
-                value={form.origin}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, origin: event.target.value }))
-                }
-                className={INPUT_CLASSNAME}
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <span>{t('destination')}</span>
-              <input
-                required
-                value={form.destination}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    destination: event.target.value,
-                  }))
-                }
-                className={INPUT_CLASSNAME}
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <span>{t('scheduled_for')}</span>
-              <input
-                required
-                type="datetime-local"
-                value={form.scheduledAt}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    scheduledAt: event.target.value,
-                  }))
-                }
-                className={INPUT_CLASSNAME}
-              />
-            </label>
-            <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <span>
-                {t('assigned_driver')}{' '}
-                <span className="text-xs opacity-70">({t('optional')})</span>
-              </span>
-              <select
-                value={form.driverId}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, driverId: event.target.value }))
-                }
-                className={INPUT_CLASSNAME}
-              >
-                <option value="">{t('none')}</option>
-                {activeDrivers.map((driver) => (
-                  <option key={driver.id} value={driver.id}>
-                    {driver.firstName} {driver.lastName}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <span>
-                {t('assigned_truck')}{' '}
-                <span className="text-xs opacity-70">({t('optional')})</span>
-              </span>
-              <select
-                value={form.truckId}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, truckId: event.target.value }))
-                }
-                className={INPUT_CLASSNAME}
-              >
-                <option value="">{t('none')}</option>
-                {(trucks?.data ?? []).map((truck) => (
-                  <option key={truck.id} value={truck.id}>
-                    {truck.plateNumber}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm text-gray-600 dark:text-gray-300 lg:col-span-2">
-              <span>
-                {t('notes')}{' '}
-                <span className="text-xs opacity-70">({t('optional')})</span>
-              </span>
-              <textarea
-                rows={3}
-                value={form.notes}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, notes: event.target.value }))
-                }
-                className={INPUT_CLASSNAME}
-              />
-            </label>
-            {createMutation.error instanceof Error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300 lg:col-span-2">
-                {createMutation.error.message}
-              </div>
-            )}
-            <div className="flex items-center justify-end gap-3 lg:col-span-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCreate(false);
+    <div className="space-y-5 md:space-y-6">
+      <ManagementHero
+        eyebrow={t('trips_page.eyebrow')}
+        title={t('nav.trips')}
+        description={t('trips_page.description')}
+        className="bg-[linear-gradient(135deg,#0f1721_0%,#15334c_48%,#0d6b58_100%)]"
+        actions={
+          canCreateTrips ? (
+            <ManagementActionButton
+              onClick={() => {
+                setShowCreate((current) => !current);
+                createMutation.reset();
+                if (showCreate) {
                   setForm(initialTripForm);
-                  createMutation.reset();
-                }}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
-              >
-                {t('cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={createMutation.isPending}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {createMutation.isPending ? t('loading') : t('create_trip')}
-              </button>
-            </div>
-          </form>
-        )}
+                }
+              }}
+              tone="hero"
+              size="md"
+              className="py-3"
+            >
+              {showCreate ? <X size={16} /> : <Plus size={16} />}
+              {showCreate ? t('cancel') : t('create_trip')}
+            </ManagementActionButton>
+          ) : null
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <ManagementStatCard
+            icon={RouteIcon}
+            label={t('trips_page.summary_total')}
+            value={tripSummary.total}
+            note={t('trips_page.visible_note')}
+          />
+          <ManagementStatCard
+            icon={Activity}
+            label={t('trips_page.summary_active')}
+            value={tripSummary.active}
+            note={t('trips_page.active_note')}
+            toneClassName="bg-sky-400/18 text-sky-50"
+          />
+          <ManagementStatCard
+            icon={CheckCircle2}
+            label={t('trips_page.summary_completed')}
+            value={tripSummary.completed}
+            note={t('trips_page.completed_note')}
+            toneClassName="bg-emerald-400/18 text-emerald-50"
+          />
+          <ManagementStatCard
+            icon={OctagonX}
+            label={t('trips_page.summary_cancelled')}
+            value={tripSummary.cancelled}
+            note={t('trips_page.cancelled_note')}
+            toneClassName="bg-rose-400/18 text-rose-50"
+          />
+        </div>
+      </ManagementHero>
 
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                {[
-                  `${t('origin')} → ${t('destination')}`,
-                  t('driver'),
-                  t('truck'),
-                  t('status'),
-                  t('scheduled_at'),
-                  ...(canCancelTrips ? [t('actions')] : []),
-                ].map((header) => (
-                  <th
-                    key={header}
-                    className="px-4 py-3 text-start font-medium text-gray-600 dark:text-gray-300"
+      <div className="grid gap-5 md:gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1.05fr)_340px] 2xl:grid-cols-[minmax(0,1.18fr)_380px]">
+        <section className="space-y-5 md:space-y-6">
+          <ManagementPanel
+            title={t('trips_page.filters_title')}
+            description={t('trips_page.filters_description')}
+            bodyClassName="space-y-4"
+            headerSlot={
+              <ToneBadge
+                label={`${t('trips_page.filtered_results')}: ${tripSummary.total}`}
+                toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+              />
+            }
+          >
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <SearchField
+                value={search}
+                onChange={setSearch}
+                placeholder={t('trips_page.search_placeholder')}
+                className="xl:col-span-2"
+              />
+
+              <ManagementField label={t('status')}>
+                <ManagementSelectField
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as TripStatusFilter)
+                  }
+                >
+                  <option value="">{t('trips_page.all_statuses')}</option>
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {t(`status_values.${status}` as Parameters<typeof t>[0])}
+                    </option>
+                  ))}
+                </ManagementSelectField>
+              </ManagementField>
+
+              <ManagementField label={t('driver')}>
+                <ManagementSelectField
+                  value={driverFilter}
+                  onChange={(event) => setDriverFilter(event.target.value)}
+                >
+                  <option value="">{t('trips_page.all_drivers')}</option>
+                  {(drivers?.data ?? []).map((driver) => (
+                    <option key={driver.id} value={driver.id}>
+                      {driver.firstName} {driver.lastName}
+                    </option>
+                  ))}
+                </ManagementSelectField>
+              </ManagementField>
+
+              <ManagementField label={t('reports.from')}>
+                <ManagementInputField
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => setFromDate(event.target.value)}
+                />
+              </ManagementField>
+
+              <ManagementField label={t('reports.to')}>
+                <ManagementInputField
+                  type="date"
+                  value={toDate}
+                  onChange={(event) => setToDate(event.target.value)}
+                />
+              </ManagementField>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                <ToneBadge
+                  label={`${t('reports.total')}: ${data?.meta?.total ?? trips.length}`}
+                  toneClassName="border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.05)] text-[var(--color-ink)]"
+                />
+                {activeFilterCount > 0 ? (
+                  <ToneBadge
+                    label={`${t('trips_page.active_filters')}: ${activeFilterCount}`}
+                    toneClassName="border-[rgba(12,107,88,0.18)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
+                  />
+                ) : null}
+              </div>
+
+              <ManagementActionButton tone="neutral" size="md" onClick={resetFilters}>
+                {t('trips_page.reset_filters')}
+              </ManagementActionButton>
+            </div>
+
+            {hasInvalidRange ? (
+              <ManagementCallout
+                tone="danger"
+                description={t('reports.invalid_range')}
+              />
+            ) : null}
+          </ManagementPanel>
+
+          {canCreateTrips && showCreate ? (
+            <ManagementPanel
+              eyebrow={t('create')}
+              title={t('trips_page.form_create_title')}
+              description={t('trips_page.form_create_description')}
+              headerSlot={
+                <ToneBadge
+                  label={t('create_trip')}
+                  toneClassName="border-[rgba(12,107,88,0.18)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
+                />
+              }
+            >
+              <form onSubmit={handleCreate} aria-busy={createMutation.isPending}>
+                <fieldset
+                  disabled={createMutation.isPending}
+                  className="grid gap-4 lg:grid-cols-2"
+                >
+                <ManagementField label={t('origin')}>
+                  <ManagementInputField
+                    required
+                    value={form.origin}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, origin: event.target.value }))
+                    }
+                  />
+                </ManagementField>
+                <ManagementField label={t('destination')}>
+                  <ManagementInputField
+                    required
+                    value={form.destination}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        destination: event.target.value,
+                      }))
+                    }
+                  />
+                </ManagementField>
+                <ManagementField label={t('scheduled_for')}>
+                  <ManagementInputField
+                    required
+                    type="datetime-local"
+                    value={form.scheduledAt}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        scheduledAt: event.target.value,
+                      }))
+                    }
+                  />
+                </ManagementField>
+                <ManagementField
+                  label={t('assigned_driver')}
+                  optionalLabel={t('optional')}
+                >
+                  <ManagementSelectField
+                    value={form.driverId}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        driverId: event.target.value,
+                      }))
+                    }
                   >
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {(isLoading || hasInvalidRange) && (
-                <tr>
-                  <td
-                    colSpan={canCancelTrips ? 6 : 5}
-                    className="py-8 text-center text-gray-400"
+                    <option value="">{t('none')}</option>
+                    {activeDrivers.map((driver) => (
+                      <option key={driver.id} value={driver.id}>
+                        {driver.firstName} {driver.lastName}
+                      </option>
+                    ))}
+                  </ManagementSelectField>
+                </ManagementField>
+                <ManagementField
+                  label={t('assigned_truck')}
+                  optionalLabel={t('optional')}
+                >
+                  <ManagementSelectField
+                    value={form.truckId}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        truckId: event.target.value,
+                      }))
+                    }
                   >
-                    {hasInvalidRange ? t('reports.invalid_range') : t('loading')}
-                  </td>
-                </tr>
-              )}
-              {!isLoading && !hasInvalidRange && visibleTrips.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={canCancelTrips ? 6 : 5}
-                    className="py-8 text-center text-gray-400"
+                    <option value="">{t('none')}</option>
+                    {(trucks?.data ?? []).map((truck) => (
+                      <option key={truck.id} value={truck.id}>
+                        {truck.plateNumber}
+                      </option>
+                    ))}
+                  </ManagementSelectField>
+                </ManagementField>
+                <ManagementField
+                  label={t('notes')}
+                  optionalLabel={t('optional')}
+                  className="lg:col-span-2"
+                >
+                  <ManagementTextareaField
+                    rows={3}
+                    value={form.notes}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                  />
+                </ManagementField>
+
+                {createMutation.error instanceof Error ? (
+                  <ManagementCallout
+                    className="lg:col-span-2"
+                    tone="danger"
+                    description={createMutation.error.message}
+                  />
+                ) : null}
+
+                <ManagementFormActions className="lg:col-span-2">
+                  <ManagementActionButton
+                    onClick={() => {
+                      setShowCreate(false);
+                      setForm(initialTripForm);
+                      createMutation.reset();
+                    }}
+                    tone="neutral"
+                    size="md"
                   >
-                    {t('no_data')}
-                  </td>
-                </tr>
-              )}
+                    {t('cancel')}
+                  </ManagementActionButton>
+                  <ManagementActionButton
+                    type="submit"
+                    loading={createMutation.isPending}
+                    tone="solid"
+                    size="md"
+                  >
+                    {t('create_trip')}
+                  </ManagementActionButton>
+                </ManagementFormActions>
+                </fieldset>
+              </form>
+            </ManagementPanel>
+          ) : null}
+
+          <ManagementPanel
+            eyebrow={t('nav.trips')}
+            title={t('trips_page.table_title')}
+            description={t('trips_page.table_description')}
+            bodyClassName="p-0"
+            headerSlot={
+              <ToneBadge
+                label={`${t('trips_page.summary_total')}: ${tripSummary.total}`}
+                toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+              />
+            }
+          >
+            <ManagementMobileList>
+              {hasInvalidRange ? (
+                <ManagementInlineState
+                  title={t('reports.invalid_range')}
+                  description={t('ui_state.empty_description')}
+                />
+              ) : null}
+
+              {isLoading && !hasInvalidRange ? (
+                <ManagementRowsSkeleton count={3} detailColumns={2} />
+              ) : null}
+
+              {!isLoading && !hasInvalidRange && visibleTrips.length === 0 ? (
+                <ManagementInlineState
+                  title={t('ui_state.empty_title')}
+                  description={t('ui_state.empty_description')}
+                />
+              ) : null}
+
               {!isLoading &&
                 !hasInvalidRange &&
                 visibleTrips.map((trip) => (
-                  <tr
+                  <ManagementMobileCard
                     key={trip.id}
-                    className={`cursor-pointer transition hover:bg-gray-50 dark:hover:bg-gray-900/60 ${
-                      selectedTripId === trip.id ? 'bg-blue-50 dark:bg-blue-950/20' : ''
-                    }`}
+                    title={`${trip.origin} → ${trip.destination}`}
+                    subtitle={formatDateTime(trip.scheduledAt)}
+                    selected={selectedTripId === trip.id}
                     onClick={() => setSelectedTripId(trip.id)}
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-                      {trip.origin} → {trip.destination}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {trip.driver
-                        ? `${trip.driver.firstName} ${trip.driver.lastName}`
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {trip.truck ? trip.truck.plateNumber : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          STATUS_COLORS[trip.status] ?? ''
-                        }`}
-                      >
-                        {t(`status_values.${trip.status}` as Parameters<typeof t>[0])}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {new Date(trip.scheduledAt).toLocaleString()}
-                    </td>
-                    {canCancelTrips && (
-                      <td className="px-4 py-3">
-                        {trip.status !== 'CANCELLED' && (
-                          <button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (confirm(t('confirm_delete'))) {
-                                cancelMutation.mutate(trip.id);
-                              }
-                            }}
-                            className="text-xs text-red-500 hover:text-red-700"
-                          >
-                            {t('cancel_trip')}
-                          </button>
+                    headerSlot={
+                      <ToneBadge
+                        label={t(
+                          `status_values.${trip.status}` as Parameters<typeof t>[0],
                         )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-          {(data?.meta?.totalPages ?? 1) > 1 && (
-            <div className="flex justify-center gap-2 border-t border-gray-100 p-4 dark:border-gray-800">
-              {Array.from({ length: data!.meta!.totalPages }, (_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setPage(index + 1)}
-                  className={`rounded-lg px-3 py-1 text-sm ${
-                    page === index + 1
-                      ? 'bg-blue-600 text-white'
-                      : 'border border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900'
-                  }`}
-                >
-                  {index + 1}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      <aside className="flex flex-col gap-4">
-        <div className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950">
-          <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-            {t('trips_page.details')}
-          </p>
-
-          {!selectedTrip && (
-            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-              {t('trips_page.select_trip')}
-            </p>
-          )}
-
-          {selectedTrip && (
-            <div className="mt-4 space-y-5">
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {selectedTrip.origin} → {selectedTrip.destination}
-                  </h2>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      STATUS_COLORS[selectedTrip.status] ?? ''
-                    }`}
+                        toneClassName={statusTone(trip.status)}
+                      />
+                    }
+                    footer={
+                      canCancelTrips && trip.status !== 'CANCELLED' ? (
+                        <ManagementActionButton
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (confirm(t('confirm_delete'))) {
+                              cancelMutation.mutate(trip.id);
+                            }
+                          }}
+                          tone="danger"
+                        >
+                          {t('cancel_trip')}
+                        </ManagementActionButton>
+                      ) : undefined
+                    }
                   >
-                    {t(
-                      `status_values.${selectedTrip.status}` as Parameters<typeof t>[0],
-                    )}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  {t('trips_page.route_label')}
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {t('driver')}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {selectedTrip.driver
-                      ? `${selectedTrip.driver.firstName} ${selectedTrip.driver.lastName}`
-                      : t('none')}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {t('truck')}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {selectedTrip.truck?.plateNumber ?? t('none')}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {t('scheduled_at')}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {new Date(selectedTrip.scheduledAt).toLocaleString()}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {t('trips_page.started_at')}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {selectedTrip.startedAt
-                      ? new Date(selectedTrip.startedAt).toLocaleString()
-                      : '—'}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-gray-100 px-4 py-3 dark:bg-gray-900 sm:col-span-2">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    {t('trips_page.completed_at')}
-                  </p>
-                  <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                    {selectedTrip.completedAt
-                      ? new Date(selectedTrip.completedAt).toLocaleString()
-                      : '—'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {t('notes')}
-                  </p>
-                  {canEditTrips && (
-                    <button
-                      type="button"
-                      disabled={!noteChanged || updateNotesMutation.isPending}
-                      onClick={handleSaveNotes}
-                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {updateNotesMutation.isPending
-                        ? t('loading')
-                        : t('trips_page.save_notes')}
-                    </button>
-                  )}
-                </div>
-                <textarea
-                  value={noteDraft}
-                  onChange={(event) => setNoteDraft(event.target.value)}
-                  disabled={!canEditTrips}
-                  rows={4}
-                  className={INPUT_CLASSNAME}
-                />
-                {updateNotesMutation.error instanceof Error && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
-                    {updateNotesMutation.error.message}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex min-h-[320px] flex-1 flex-col overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-          <div className="border-b border-gray-200 p-5 dark:border-gray-800">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                  {t('trips_page.track_history')}
-                </p>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {t('trips_page.track_history_description')}
-                </p>
-              </div>
-              {selectedTrip && (
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                  {t('trips_page.points_recorded')}: {selectedTrack.length}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4 overflow-y-auto p-4">
-            {!selectedTrip && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {t('trips_page.select_trip')}
-              </p>
-            )}
-
-            {selectedTrip && !selectedTrip.driverId && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {t('trips_page.no_track_history')}
-              </p>
-            )}
-
-            {selectedTrip && selectedTrip.driverId && latestTrackPoint && (
-              <div className="rounded-2xl bg-blue-50 px-4 py-4 dark:bg-blue-950/20">
-                <p className="text-xs uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                  {t('trips_page.latest_record')}
-                </p>
-                <p className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                  {latestTrackPoint.lat.toFixed(5)}, {latestTrackPoint.lng.toFixed(5)}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-                  <span>
-                    {t('speed')}: {latestTrackPoint.speedKmh ?? '—'} km/h
-                  </span>
-                  <span>
-                    {t('trips_page.accuracy')}: {latestTrackPoint.accuracyM ?? '—'} m
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {trackHistoryLoading && (
-              <p className="text-sm text-gray-400">{t('loading')}</p>
-            )}
-
-            {selectedTrip &&
-              selectedTrip.driverId &&
-              !trackHistoryLoading &&
-              selectedTrack.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {t('trips_page.no_track_history')}
-                </p>
-              )}
-
-            <div className="space-y-3">
-              {selectedTrack
-                .slice()
-                .reverse()
-                .map((point) => (
-                  <div
-                    key={point.id}
-                    className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                          {t('driver')}
                         </p>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(point.recordedAt).toLocaleString()}
+                        <p className="mt-1 text-sm text-[var(--color-ink)]">
+                          {trip.driver
+                            ? `${trip.driver.firstName} ${trip.driver.lastName}`
+                            : '—'}
                         </p>
                       </div>
-                      <span className="rounded-full bg-gray-200 px-3 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                        {t('trips_page.heading')}: {point.heading ?? '—'}
-                      </span>
+                      <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                          {t('truck')}
+                        </p>
+                        <p className="mt-1 text-sm text-[var(--color-ink)]">
+                          {trip.truck ? trip.truck.plateNumber : '—'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-                      <span>
-                        {t('speed')}: {point.speedKmh ?? '—'} km/h
-                      </span>
-                      <span>
-                        {t('trips_page.accuracy')}: {point.accuracyM ?? '—'} m
-                      </span>
-                    </div>
-                  </div>
+                  </ManagementMobileCard>
                 ))}
+            </ManagementMobileList>
+
+            <ManagementDesktopTable>
+              <table
+                className="min-w-full text-sm"
+                aria-busy={isLoading && !hasInvalidRange}
+              >
+                <caption className="sr-only">
+                  {t('trips_page.table_title')}. {t('trips_page.table_description')}
+                </caption>
+                <thead className="bg-[rgba(15,23,42,0.04)]">
+                  <tr>
+                    {[
+                      `${t('origin')} → ${t('destination')}`,
+                      t('driver'),
+                      t('truck'),
+                      t('status'),
+                      t('scheduled_at'),
+                      t('actions'),
+                    ].map((header) => (
+                      <th
+                        key={header}
+                        scope="col"
+                        className={MANAGEMENT_TABLE_HEAD_CLASSNAME}
+                      >
+                        {header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[rgba(15,23,42,0.08)]">
+                  {hasInvalidRange ? (
+                    <ManagementTableState
+                      colSpan={6}
+                      title={t('reports.invalid_range')}
+                      description={t('ui_state.empty_description')}
+                    />
+                  ) : null}
+
+                  {isLoading && !hasInvalidRange ? (
+                    <ManagementTableSkeleton
+                      colSpan={6}
+                      rows={4}
+                    />
+                  ) : null}
+
+                  {!isLoading && !hasInvalidRange && visibleTrips.length === 0 ? (
+                    <ManagementTableState
+                      colSpan={6}
+                      title={t('ui_state.empty_title')}
+                      description={t('ui_state.empty_description')}
+                    />
+                  ) : null}
+
+                  {!isLoading &&
+                    !hasInvalidRange &&
+                    visibleTrips.map((trip) => (
+                      <tr
+                        key={trip.id}
+                        className={cn(
+                          'cursor-pointer transition hover:bg-white/70 motion-reduce:transition-none',
+                          selectedTripId === trip.id &&
+                            'bg-[rgba(12,107,88,0.08)] hover:bg-[rgba(12,107,88,0.12)]',
+                        )}
+                        onClick={() => setSelectedTripId(trip.id)}
+                      >
+                        <th
+                          scope="row"
+                          className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} font-semibold text-[var(--color-ink)]`}
+                        >
+                          {trip.origin} → {trip.destination}
+                        </th>
+                        <td
+                          className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
+                        >
+                          {trip.driver
+                            ? `${trip.driver.firstName} ${trip.driver.lastName}`
+                            : '—'}
+                        </td>
+                        <td
+                          className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
+                        >
+                          {trip.truck ? trip.truck.plateNumber : '—'}
+                        </td>
+                        <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                          <ToneBadge
+                            label={t(
+                              `status_values.${trip.status}` as Parameters<typeof t>[0],
+                            )}
+                            toneClassName={statusTone(trip.status)}
+                          />
+                        </td>
+                        <td
+                          className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
+                        >
+                          {formatDateTime(trip.scheduledAt)}
+                        </td>
+                        <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                          <div className="flex flex-wrap gap-2">
+                            <ManagementActionButton
+                              tone={selectedTripId === trip.id ? 'solid' : 'neutral'}
+                              aria-pressed={selectedTripId === trip.id}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedTripId(trip.id);
+                              }}
+                            >
+                              {t('trips_page.details')}
+                            </ManagementActionButton>
+                            {canCancelTrips && trip.status !== 'CANCELLED' ? (
+                              <ManagementActionButton
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (confirm(t('confirm_delete'))) {
+                                    cancelMutation.mutate(trip.id);
+                                  }
+                                }}
+                                tone="danger"
+                              >
+                                {t('cancel_trip')}
+                              </ManagementActionButton>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </ManagementDesktopTable>
+
+            <PaginationBar page={page} totalPages={totalPages} onChange={setPage} />
+          </ManagementPanel>
+        </section>
+
+        <aside className="space-y-5 md:space-y-6 lg:sticky lg:top-0 lg:self-start">
+          <ManagementPanel
+            eyebrow={t('trips_page.details')}
+            title={
+              selectedTrip
+                ? `${selectedTrip.origin} → ${selectedTrip.destination}`
+                : t('trips_page.details')
+            }
+            description={t('trips_page.details_description')}
+            headerSlot={
+              selectedTrip ? (
+                <ToneBadge
+                  label={t(
+                    `status_values.${selectedTrip.status}` as Parameters<typeof t>[0],
+                  )}
+                  toneClassName={statusTone(selectedTrip.status)}
+                />
+              ) : undefined
+            }
+            bodyClassName="space-y-4"
+          >
+            {!selectedTrip ? (
+              <ManagementInlineState
+                title={t('trips_page.select_trip')}
+                description={t('ui_state.selection_description')}
+              />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-[rgba(12,107,88,0.18)] bg-[rgba(12,107,88,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--color-brand)]">
+                    {t('trips_page.route_label')}
+                  </span>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ManagementDetailTile
+                    label={t('driver')}
+                    value={
+                      selectedTrip.driver
+                        ? `${selectedTrip.driver.firstName} ${selectedTrip.driver.lastName}`
+                        : t('none')
+                    }
+                  />
+                  <ManagementDetailTile
+                    label={t('truck')}
+                    value={selectedTrip.truck?.plateNumber ?? t('none')}
+                  />
+                  <ManagementDetailTile
+                    label={t('scheduled_at')}
+                    value={formatDateTime(selectedTrip.scheduledAt)}
+                  />
+                  <ManagementDetailTile
+                    label={t('trips_page.started_at')}
+                    value={formatDateTime(selectedTrip.startedAt)}
+                  />
+                  <div className="sm:col-span-2">
+                    <ManagementDetailTile
+                      label={t('trips_page.completed_at')}
+                      value={formatDateTime(selectedTrip.completedAt)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        {t('notes')}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--color-muted)]">
+                        {t('trips_page.notes_description')}
+                      </p>
+                    </div>
+
+                    {canEditTrips ? (
+                      <ManagementActionButton
+                        disabled={!noteChanged}
+                        loading={updateNotesMutation.isPending}
+                        onClick={handleSaveNotes}
+                        tone="solid"
+                      >
+                        {t('trips_page.save_notes')}
+                      </ManagementActionButton>
+                    ) : null}
+                  </div>
+
+                  <ManagementTextareaField
+                    value={noteDraft}
+                    onChange={(event) => setNoteDraft(event.target.value)}
+                    disabled={!canEditTrips}
+                    rows={4}
+                  />
+
+                  {updateNotesMutation.error instanceof Error ? (
+                    <ManagementCallout
+                      tone="danger"
+                      description={updateNotesMutation.error.message}
+                    />
+                  ) : null}
+                </div>
+              </>
+            )}
+          </ManagementPanel>
+
+          <ManagementPanel
+            eyebrow={t('trips_page.track_history')}
+            title={t('trips_page.track_history')}
+            description={t('trips_page.track_history_description')}
+            headerSlot={
+              selectedTrip ? (
+                <ToneBadge
+                  label={`${t('trips_page.points_recorded')}: ${selectedTrack.length}`}
+                  toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+                />
+              ) : undefined
+            }
+            bodyClassName="space-y-4"
+          >
+            {!selectedTrip ? (
+              <ManagementInlineState
+                title={t('trips_page.select_trip')}
+                description={t('ui_state.selection_description')}
+              />
+            ) : null}
+
+            {selectedTrip && !selectedTrip.driverId ? (
+              <ManagementCallout
+                tone="info"
+                description={t('trips_page.track_unavailable')}
+              />
+            ) : null}
+
+            {selectedTrip && selectedTrip.driverId && latestTrackPoint ? (
+              <ManagementSurfaceCard className="border-sky-200 bg-[linear-gradient(180deg,#eff8ff_0%,#f8fbff_100%)] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">
+                      {t('trips_page.latest_record')}
+                    </p>
+                    <p className="mt-2 text-base font-semibold text-slate-900">
+                      {latestTrackPoint.lat.toFixed(5)}, {latestTrackPoint.lng.toFixed(5)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {formatDateTime(latestTrackPoint.recordedAt)}
+                    </p>
+                  </div>
+                  <ManagementIconBadge
+                    icon={MapPinned}
+                    size={18}
+                    className="bg-sky-100 text-sky-700"
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <ManagementDetailTile
+                    label={t('speed')}
+                    value={`${latestTrackPoint.speedKmh ?? '—'} km/h`}
+                  />
+                  <ManagementDetailTile
+                    label={t('trips_page.accuracy')}
+                    value={`${latestTrackPoint.accuracyM ?? '—'} m`}
+                  />
+                </div>
+              </ManagementSurfaceCard>
+            ) : null}
+
+            {trackHistoryLoading ? (
+              <ManagementRowsSkeleton count={3} detailColumns={2} />
+            ) : null}
+
+            {selectedTrip &&
+            selectedTrip.driverId &&
+            !trackHistoryLoading &&
+            reversedTrack.length === 0 ? (
+              <ManagementInlineState
+                title={t('trips_page.track_history_empty')}
+                description={t('ui_state.empty_description')}
+              />
+            ) : null}
+
+            <div className="space-y-3">
+              {reversedTrack.map((point) => (
+                <ManagementSurfaceCard
+                  key={point.id}
+                  className="p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--color-muted)]">
+                        {formatDateTime(point.recordedAt)}
+                      </p>
+                    </div>
+                    <ToneBadge
+                      label={`${t('trips_page.heading')}: ${point.heading ?? '—'}`}
+                      toneClassName="border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.05)] text-[var(--color-ink)]"
+                    />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <ManagementDetailTile
+                      label={t('speed')}
+                      value={`${point.speedKmh ?? '—'} km/h`}
+                    />
+                    <ManagementDetailTile
+                      label={t('trips_page.accuracy')}
+                      value={`${point.accuracyM ?? '—'} m`}
+                    />
+                  </div>
+                </ManagementSurfaceCard>
+              ))}
             </div>
-          </div>
-        </div>
-      </aside>
+          </ManagementPanel>
+        </aside>
+      </div>
     </div>
   );
 }
