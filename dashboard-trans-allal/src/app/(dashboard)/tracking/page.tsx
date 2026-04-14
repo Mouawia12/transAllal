@@ -122,6 +122,29 @@ function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatTimeOnly(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatDayOnly(value: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
 function getDriverActivityLabel(
   t: ReturnType<typeof useTranslations>,
   driver: LiveDriver,
@@ -400,6 +423,20 @@ export default function TrackingPage() {
     statusFilter !== 'all',
     search.trim(),
   ].filter(Boolean).length;
+  const historySummary = useMemo(() => {
+    if (recentHistory.length === 0) {
+      return null;
+    }
+
+    const latestPoint = recentHistory[0];
+
+    return {
+      total: recentHistory.length,
+      latestAt: latestPoint.recordedAt,
+      latestSpeed: latestPoint.speedKmh,
+      latestHeading: latestPoint.heading,
+    };
+  }, [recentHistory]);
 
   if (!hasHydrated) {
     return (
@@ -453,7 +490,7 @@ export default function TrackingPage() {
         </div>
       </ManagementHero>
 
-      <div className="grid gap-5 md:gap-6 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_300px]">
+      <div className="grid gap-5 md:gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
         <ManagementPanel
           title={t('tracking.driver_list_title')}
           bodyClassName="space-y-4 p-0"
@@ -583,42 +620,42 @@ export default function TrackingPage() {
           </div>
         </ManagementPanel>
 
-        <ManagementPanel
-          title={t('tracking.map_title')}
-          bodyClassName="p-0"
-          headerSlot={
-            <ToneBadge
-              label={selected ? `${selected.firstName} ${selected.lastName}` : t('tracking.select_driver')}
-              toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
-            />
-          }
-        >
-          <div className="relative h-[360px] overflow-hidden sm:h-[420px] lg:h-[520px] xl:h-[580px]">
-            <LiveTrackingMap
-              drivers={displayedDrivers}
-              selectedDriverId={selectedDriver}
-              onSelectDriver={setSelectedDriver}
-            />
+        <div className="space-y-5 md:space-y-6">
+          <ManagementPanel
+            title={t('tracking.map_title')}
+            bodyClassName="p-0"
+            headerSlot={
+              <ToneBadge
+                label={selected ? `${selected.firstName} ${selected.lastName}` : t('tracking.select_driver')}
+                toneClassName="border-[rgba(15,23,42,0.08)] bg-white/80 text-[var(--color-ink)]"
+              />
+            }
+          >
+            <div className="relative h-[360px] overflow-hidden sm:h-[420px] lg:h-[500px] xl:h-[560px]">
+              <LiveTrackingMap
+                drivers={displayedDrivers}
+                selectedDriverId={selectedDriver}
+                onSelectDriver={setSelectedDriver}
+              />
 
-            <div className="pointer-events-none absolute left-3 right-3 top-3 flex items-start justify-between gap-3 sm:left-4 sm:right-4 sm:top-4">
-              <div className="pointer-events-auto max-w-[15rem] rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur sm:max-w-md">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
-                  {t('tracking.location_stream')}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[var(--color-ink)]">
-                  {selected
-                    ? `${selected.firstName} ${selected.lastName} · ${getDriverActivityLabel(
-                        t,
-                        selected,
-                      )}`
-                    : t('tracking.select_driver')}
-                </p>
+              <div className="pointer-events-none absolute left-3 right-3 top-3 flex items-start justify-between gap-3 sm:left-4 sm:right-4 sm:top-4">
+                <div className="pointer-events-auto max-w-[15rem] rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur sm:max-w-md">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
+                    {t('tracking.location_stream')}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-ink)]">
+                    {selected
+                      ? `${selected.firstName} ${selected.lastName} · ${getDriverActivityLabel(
+                          t,
+                          selected,
+                        )}`
+                      : t('tracking.select_driver')}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </ManagementPanel>
+          </ManagementPanel>
 
-        <div className="space-y-5 md:space-y-6 lg:col-span-2 xl:col-span-1">
           <ManagementPanel
             eyebrow={t('tracking.current_position')}
             title={t('tracking.current_position')}
@@ -672,80 +709,153 @@ export default function TrackingPage() {
               </div>
             )}
           </ManagementPanel>
+        </div>
+      </div>
 
-          <ManagementPanel
-            eyebrow={t('tracking.history')}
-            title={t('tracking.history')}
-            description={t('tracking.history_description')}
-            headerSlot={
-              <ManagementSegmentedControl
-                value={historyRange}
-                onChange={(value) => setHistoryRange(value as HistoryRange)}
-                options={[
-                  { value: '6h', label: t('tracking.last_6_hours') },
-                  { value: '24h', label: t('tracking.last_24_hours') },
-                  { value: '7d', label: t('tracking.last_7_days') },
-                ]}
-                className="w-full min-w-[220px] max-w-[320px]"
-              />
-            }
-            bodyClassName="space-y-4"
-          >
-            {!selected ? (
-              <ManagementInlineState
-                title={t('tracking.select_driver')}
-                description={t('ui_state.selection_description')}
-              />
-            ) : null}
+      <ManagementPanel
+        eyebrow={t('tracking.history')}
+        title={t('tracking.history')}
+        description={t('tracking.history_description')}
+        bodyClassName="p-0"
+        headerSlot={
+          <div className="flex w-full flex-col gap-2 sm:items-end">
+            <ManagementSegmentedControl
+              value={historyRange}
+              onChange={(value) => setHistoryRange(value as HistoryRange)}
+              options={[
+                { value: '6h', label: t('tracking.last_6_hours') },
+                { value: '24h', label: t('tracking.last_24_hours') },
+                { value: '7d', label: t('tracking.last_7_days') },
+              ]}
+              className="w-full min-w-[220px] max-w-[320px]"
+            />
+          </div>
+        }
+      >
+        {!selected ? (
+          <div className="p-5 md:p-6">
+            <ManagementInlineState
+              title={t('tracking.select_driver')}
+              description={t('ui_state.selection_description')}
+            />
+          </div>
+        ) : null}
 
-            {selected && historyIsLoading ? (
-              <ManagementRowsSkeleton count={3} detailColumns={2} />
-            ) : null}
+        {selected && historyIsLoading ? (
+          <div className="p-5 md:p-6">
+            <ManagementRowsSkeleton count={5} detailColumns={4} />
+          </div>
+        ) : null}
 
-            {selected && !historyIsLoading && recentHistory.length === 0 ? (
-              <ManagementInlineState
-                title={t('tracking.no_history')}
-                description={t('ui_state.empty_description')}
-              />
-            ) : null}
+        {selected && !historyIsLoading && recentHistory.length === 0 ? (
+          <div className="p-5 md:p-6">
+            <ManagementInlineState
+              title={t('tracking.no_history')}
+              description={t('ui_state.empty_description')}
+            />
+          </div>
+        ) : null}
 
-            <div className="space-y-3">
-              {recentHistory.map((point) => (
-                <ManagementSurfaceCard
-                  key={point.id}
-                  className="p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+        {selected && !historyIsLoading && recentHistory.length > 0 ? (
+          <>
+            <div className="grid gap-3 border-y border-[rgba(15,23,42,0.08)] bg-[rgba(12,107,88,0.03)] px-4 py-4 sm:grid-cols-2 xl:grid-cols-4 md:px-5">
+              <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/88 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  {t('tracking.history')}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                  {historySummary?.total ?? 0}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/88 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  {t('last_seen')}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[var(--color-ink)]">
+                  {formatDateTime(historySummary?.latestAt ?? null)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/88 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  {t('speed')}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                  {historySummary?.latestSpeed ?? '—'} km/h
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/88 px-4 py-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)]">
+                  {t('tracking.heading')}
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[var(--color-ink)]">
+                  {historySummary?.latestHeading ?? '—'}
+                </p>
+              </div>
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto">
+              <div className="hidden sticky top-0 z-10 border-b border-[rgba(15,23,42,0.08)] bg-[var(--color-panel-strong)]/95 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-muted)] backdrop-blur sm:grid sm:grid-cols-[1.1fr_1.6fr_0.8fr_0.8fr] sm:gap-4">
+                <span>{t('last_seen')}</span>
+                <span>{t('tracking.coordinates')}</span>
+                <span>{t('speed')}</span>
+                <span>{t('tracking.heading')}</span>
+              </div>
+
+              <div className="divide-y divide-[rgba(15,23,42,0.08)]">
+                {recentHistory.map((point, index) => (
+                  <div
+                    key={point.id}
+                    className="grid gap-3 px-4 py-4 transition-colors hover:bg-[rgba(12,107,88,0.04)] sm:grid-cols-[1.1fr_1.6fr_0.8fr_0.8fr] sm:gap-4 md:px-5"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-2xl border border-[rgba(12,107,88,0.12)] bg-[rgba(12,107,88,0.08)] px-2 text-xs font-semibold text-[var(--color-brand)]">
+                          #{index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[var(--color-ink)]">
+                            {formatTimeOnly(point.recordedAt)}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--color-muted)]">
+                            {formatDayOnly(point.recordedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 rounded-2xl border border-[rgba(15,23,42,0.08)] bg-white/82 px-3 py-2.5">
+                      <p className="truncate text-sm font-semibold text-[var(--color-ink)]">
                         {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--color-muted)]">
-                        {formatDateTime(point.recordedAt)}
+                        {point.tripId ? t('tracking.in_trip') : t('tracking.standalone')}
                       </p>
                     </div>
-                    <ToneBadge
-                      label={`${t('tracking.heading')}: ${point.heading ?? '—'}`}
-                      toneClassName="border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.05)] text-[var(--color-ink)]"
-                    />
-                  </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <ManagementDetailTile
-                      label={t('speed')}
-                      value={`${point.speedKmh ?? '—'} km/h`}
-                    />
-                    <ManagementDetailTile
-                      label={t('tracking.coordinates')}
-                      value={`${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}
-                    />
+                    <div className="flex min-h-[3.25rem] items-center justify-between rounded-2xl border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.03)] px-3 py-2.5 sm:block sm:min-h-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)] sm:hidden">
+                        {t('speed')}
+                      </span>
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        {point.speedKmh ?? '—'} km/h
+                      </p>
+                    </div>
+
+                    <div className="flex min-h-[3.25rem] items-center justify-between rounded-2xl border border-[rgba(15,23,42,0.08)] bg-[rgba(15,23,42,0.03)] px-3 py-2.5 sm:block sm:min-h-0 sm:rounded-none sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--color-muted)] sm:hidden">
+                        {t('tracking.heading')}
+                      </span>
+                      <p className="text-sm font-semibold text-[var(--color-ink)]">
+                        {point.heading ?? '—'}
+                      </p>
+                    </div>
                   </div>
-                </ManagementSurfaceCard>
-              ))}
+                ))}
+              </div>
             </div>
-          </ManagementPanel>
-        </div>
-      </div>
+          </>
+        ) : null}
+      </ManagementPanel>
     </div>
   );
 }
