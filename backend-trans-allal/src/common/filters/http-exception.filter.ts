@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { QueryFailedError } from 'typeorm';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -36,6 +37,37 @@ export class HttpExceptionFilter implements ExceptionFilter {
           message = 'Validation failed';
           code = 'VALIDATION_ERROR';
         }
+      }
+    } else if (exception instanceof QueryFailedError) {
+      const driverError = exception.driverError as {
+        code?: string;
+        sqlMessage?: string;
+      };
+      const sqlMessage = driverError.sqlMessage?.toLowerCase() ?? '';
+      const duplicateKey =
+        /for key ['`"]([^'"`]+)['"`]/i.exec(driverError.sqlMessage ?? '')?.[1]?.toLowerCase() ??
+        '';
+
+      if (driverError.code === 'ER_DUP_ENTRY') {
+        status = HttpStatus.CONFLICT;
+        code = 'RESOURCE_CONFLICT';
+        message = 'A record with the same unique value already exists';
+
+        if (duplicateKey.includes('phone') || sqlMessage.includes('drivers.phone')) {
+          code = 'DRIVER_PHONE_EXISTS';
+          message = 'A driver with this phone number already exists';
+        } else if (
+          duplicateKey.includes('license') ||
+          sqlMessage.includes('license_number')
+        ) {
+          code = 'DRIVER_LICENSE_EXISTS';
+          message = 'A driver with this license number already exists';
+        } else if (duplicateKey.includes('email') || sqlMessage.includes('users.email')) {
+          code = 'USER_EMAIL_EXISTS';
+          message = 'A user with this email already exists';
+        }
+      } else {
+        this.logger.error(exception.message, exception.stack);
       }
     } else if (exception instanceof Error) {
       this.logger.error(exception.message, exception.stack);

@@ -36,7 +36,7 @@ import {
   SearchField,
   ToneBadge,
 } from '../../../components/shared/management-ui';
-import { apiClient } from '../../../lib/api/client';
+import { ApiError, apiClient } from '../../../lib/api/client';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { useCompanyScope } from '../../../lib/company/use-company-scope';
 import type { ApiResponse, Driver } from '../../../types/shared';
@@ -50,6 +50,16 @@ const initialDriverForm = {
   initialPassword: '',
   isActive: true,
 };
+
+type DriverFormState = typeof initialDriverForm;
+type DriverFormField = keyof DriverFormState;
+type DriverFormErrors = Partial<Record<DriverFormField, string>>;
+
+interface DriverFeedback {
+  tone: 'success' | 'danger';
+  title: string;
+  description: string;
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -71,6 +81,112 @@ function connectionTone(isOnline: boolean) {
     : 'border-slate-200 bg-slate-100 text-slate-600';
 }
 
+function isValidDateInput(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+}
+
+function isPastDateInput(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return false;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return parsed < today;
+}
+
+function validateDriverForm(
+  form: DriverFormState,
+  isEditing: boolean,
+  t: ReturnType<typeof useTranslations>,
+): DriverFormErrors {
+  const errors: DriverFormErrors = {};
+
+  if (!form.firstName.trim()) {
+    errors.firstName = t('drivers_page.first_name_required');
+  }
+
+  if (!form.lastName.trim()) {
+    errors.lastName = t('drivers_page.last_name_required');
+  }
+
+  const normalizedPhone = form.phone.trim();
+  if (!normalizedPhone) {
+    errors.phone = t('drivers_page.phone_required');
+  } else if (!/^[0-9+\-\s]{8,20}$/.test(normalizedPhone)) {
+    errors.phone = t('drivers_page.phone_invalid');
+  }
+
+  if (!form.licenseNumber.trim()) {
+    errors.licenseNumber = t('drivers_page.license_number_required');
+  }
+
+  if (!form.licenseExpiry) {
+    errors.licenseExpiry = t('drivers_page.license_expiry_required');
+  } else if (!isValidDateInput(form.licenseExpiry)) {
+    errors.licenseExpiry = t('drivers_page.license_expiry_invalid');
+  } else if (isPastDateInput(form.licenseExpiry)) {
+    errors.licenseExpiry = t('drivers_page.license_expiry_past');
+  }
+
+  if (
+    !isEditing &&
+    form.initialPassword.trim() &&
+    form.initialPassword.trim().length < 6
+  ) {
+    errors.initialPassword = t('drivers_page.initial_password_short');
+  }
+
+  return errors;
+}
+
+function resolveDriverMutationError(
+  error: unknown,
+  t: ReturnType<typeof useTranslations>,
+) {
+  if (error instanceof ApiError) {
+    if (error.code === 'DRIVER_PHONE_EXISTS') {
+      return t('drivers_page.phone_exists');
+    }
+
+    if (error.code === 'DRIVER_LICENSE_EXISTS') {
+      return t('drivers_page.license_exists');
+    }
+
+    if (error.code === 'RESOURCE_CONFLICT') {
+      return t('drivers_page.conflict_exists');
+    }
+
+    if (
+      error.code === 'VALIDATION_ERROR' &&
+      Array.isArray(error.details) &&
+      typeof error.details[0] === 'string'
+    ) {
+      return error.details[0];
+    }
+
+    if (error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_ABORTED') {
+      return t('drivers_page.network_error');
+    }
+
+    if (error.message) {
+      return error.message;
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return t('drivers_page.unexpected_error');
+}
+
 export default function DriversPage() {
   const t = useTranslations();
   const qc = useQueryClient();
@@ -81,6 +197,8 @@ export default function DriversPage() {
   const [editingDriverId, setEditingDriverId] = useState<string | null>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
   const [form, setForm] = useState(initialDriverForm);
+  const [formErrors, setFormErrors] = useState<DriverFormErrors>({});
+  const [feedback, setFeedback] = useState<DriverFeedback | null>(null);
 
   const canManageDrivers =
     user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
@@ -99,7 +217,7 @@ export default function DriversPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: typeof initialDriverForm) =>
+    mutationFn: (payload: DriverFormState) =>
       apiClient.post<{ data: { driver: Driver; temporaryPassword?: string } }>(
         ENDPOINTS.DRIVERS,
         {
@@ -113,6 +231,12 @@ export default function DriversPage() {
       ),
     onSuccess: (response) => {
       setCreatedPassword(response.data.temporaryPassword ?? null);
+      setFeedback({
+        tone: 'success',
+        title: t('drivers_page.create_success_title'),
+        description: t('drivers_page.create_success_description'),
+      });
+      setFormErrors({});
       setForm(initialDriverForm);
       setShowCreate(false);
       setEditingDriverId(null);
@@ -120,10 +244,17 @@ export default function DriversPage() {
       void qc.invalidateQueries({ queryKey: ['drivers', companyId] });
       void qc.invalidateQueries({ queryKey: ['reports', 'summary', companyId] });
     },
+    onError: (error) => {
+      setFeedback({
+        tone: 'danger',
+        title: t('drivers_page.save_failed_title'),
+        description: resolveDriverMutationError(error, t),
+      });
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (payload: typeof initialDriverForm) =>
+    mutationFn: (payload: DriverFormState) =>
       apiClient.patch<{ data: Driver }>(ENDPOINTS.DRIVER(editingDriverId!), {
         firstName: payload.firstName.trim(),
         lastName: payload.lastName.trim(),
@@ -133,19 +264,51 @@ export default function DriversPage() {
         isActive: payload.isActive,
       }),
     onSuccess: () => {
+      setFeedback({
+        tone: 'success',
+        title: t('drivers_page.update_success_title'),
+        description: t('drivers_page.update_success_description'),
+      });
+      setFormErrors({});
       setForm(initialDriverForm);
       setShowCreate(false);
       setEditingDriverId(null);
       void qc.invalidateQueries({ queryKey: ['drivers', companyId] });
       void qc.invalidateQueries({ queryKey: ['reports', 'summary', companyId] });
     },
+    onError: (error) => {
+      setFeedback({
+        tone: 'danger',
+        title: t('drivers_page.save_failed_title'),
+        description: resolveDriverMutationError(error, t),
+      });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete<void>(ENDPOINTS.DRIVER(id)),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      if (editingDriverId === id) {
+        setForm(initialDriverForm);
+        setShowCreate(false);
+        setEditingDriverId(null);
+        setFormErrors({});
+      }
+
+      setFeedback({
+        tone: 'success',
+        title: t('drivers_page.delete_success_title'),
+        description: t('drivers_page.delete_success_description'),
+      });
       void qc.invalidateQueries({ queryKey: ['drivers', companyId] });
       void qc.invalidateQueries({ queryKey: ['reports', 'summary', companyId] });
+    },
+    onError: (error) => {
+      setFeedback({
+        tone: 'danger',
+        title: t('drivers_page.delete_failed_title'),
+        description: resolveDriverMutationError(error, t),
+      });
     },
   });
 
@@ -179,14 +342,18 @@ export default function DriversPage() {
     setShowCreate(false);
     setEditingDriverId(null);
     setForm(initialDriverForm);
+    setFormErrors({});
+    setFeedback(null);
     createMutation.reset();
     updateMutation.reset();
   };
 
   const startCreate = () => {
     setCreatedPassword(null);
+    setFeedback(null);
     setEditingDriverId(null);
     setForm(initialDriverForm);
+    setFormErrors({});
     setShowCreate(true);
     createMutation.reset();
     updateMutation.reset();
@@ -194,6 +361,7 @@ export default function DriversPage() {
 
   const startEdit = (driver: Driver) => {
     setCreatedPassword(null);
+    setFeedback(null);
     setEditingDriverId(driver.id);
     setForm({
       firstName: driver.firstName,
@@ -204,6 +372,7 @@ export default function DriversPage() {
       initialPassword: '',
       isActive: driver.isActive,
     });
+    setFormErrors({});
     setShowCreate(true);
     createMutation.reset();
     updateMutation.reset();
@@ -211,7 +380,38 @@ export default function DriversPage() {
 
   const handleCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const nextErrors = validateDriverForm(form, isEditing, t);
+    setFeedback(null);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      setFeedback({
+        tone: 'danger',
+        title: t('drivers_page.validation_title'),
+        description: t('drivers_page.validation_description'),
+      });
+      return;
+    }
+
+    setFormErrors({});
     activeMutation.mutate(form);
+  };
+
+  const updateFormValue = <K extends DriverFormField>(
+    field: K,
+    value: DriverFormState[K],
+  ) => {
+    setFeedback(null);
+    setForm((current) => ({ ...current, [field]: value }));
+    setFormErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const nextErrors = { ...current };
+      delete nextErrors[field];
+      return nextErrors;
+    });
   };
 
   return (
@@ -266,6 +466,14 @@ export default function DriversPage() {
         </div>
       </ManagementHero>
 
+      {feedback ? (
+        <ManagementCallout
+          tone={feedback.tone}
+          title={feedback.title}
+          description={feedback.description}
+        />
+      ) : null}
+
       {createdPassword ? (
         <div className="flex flex-col gap-3 rounded-[28px] border border-amber-200 bg-[linear-gradient(180deg,#fff7e8_0%,#fff3d6_100%)] p-5 text-amber-950 shadow-[var(--shadow-panel)] md:flex-row md:items-start md:justify-between">
           <div className="flex items-start gap-3">
@@ -319,53 +527,61 @@ export default function DriversPage() {
               <ManagementInputField
                 required
                 value={form.firstName}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, firstName: event.target.value }))
-                }
+                aria-invalid={Boolean(formErrors.firstName)}
+                onChange={(event) => updateFormValue('firstName', event.target.value)}
               />
+              {formErrors.firstName ? (
+                <p className="text-xs leading-5 text-red-600">{formErrors.firstName}</p>
+              ) : null}
             </ManagementField>
             <ManagementField label={t('last_name')}>
               <ManagementInputField
                 required
                 value={form.lastName}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, lastName: event.target.value }))
-                }
+                aria-invalid={Boolean(formErrors.lastName)}
+                onChange={(event) => updateFormValue('lastName', event.target.value)}
               />
+              {formErrors.lastName ? (
+                <p className="text-xs leading-5 text-red-600">{formErrors.lastName}</p>
+              ) : null}
             </ManagementField>
             <ManagementField label={t('phone')}>
               <ManagementInputField
                 required
                 value={form.phone}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, phone: event.target.value }))
-                }
+                aria-invalid={Boolean(formErrors.phone)}
+                onChange={(event) => updateFormValue('phone', event.target.value)}
               />
+              {formErrors.phone ? (
+                <p className="text-xs leading-5 text-red-600">{formErrors.phone}</p>
+              ) : null}
             </ManagementField>
             <ManagementField label={t('license_number')}>
               <ManagementInputField
                 required
                 value={form.licenseNumber}
+                aria-invalid={Boolean(formErrors.licenseNumber)}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    licenseNumber: event.target.value,
-                  }))
+                  updateFormValue('licenseNumber', event.target.value)
                 }
               />
+              {formErrors.licenseNumber ? (
+                <p className="text-xs leading-5 text-red-600">{formErrors.licenseNumber}</p>
+              ) : null}
             </ManagementField>
             <ManagementField label={t('license_expiry')}>
               <ManagementInputField
                 required
                 type="date"
                 value={form.licenseExpiry}
+                aria-invalid={Boolean(formErrors.licenseExpiry)}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    licenseExpiry: event.target.value,
-                  }))
+                  updateFormValue('licenseExpiry', event.target.value)
                 }
               />
+              {formErrors.licenseExpiry ? (
+                <p className="text-xs leading-5 text-red-600">{formErrors.licenseExpiry}</p>
+              ) : null}
             </ManagementField>
             {!isEditing ? (
               <ManagementField
@@ -374,13 +590,16 @@ export default function DriversPage() {
               >
                 <ManagementInputField
                   value={form.initialPassword}
+                  aria-invalid={Boolean(formErrors.initialPassword)}
                   onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      initialPassword: event.target.value,
-                    }))
+                    updateFormValue('initialPassword', event.target.value)
                   }
                 />
+                {formErrors.initialPassword ? (
+                  <p className="text-xs leading-5 text-red-600">
+                    {formErrors.initialPassword}
+                  </p>
+                ) : null}
               </ManagementField>
             ) : null}
 
@@ -390,30 +609,11 @@ export default function DriversPage() {
               description={t('temporary_password_help')}
             />
 
-            {createMutation.error instanceof Error ? (
-              <ManagementCallout
-                className="lg:col-span-2"
-                tone="danger"
-                description={createMutation.error.message}
-              />
-            ) : null}
-
-            {updateMutation.error instanceof Error ? (
-              <ManagementCallout
-                className="lg:col-span-2"
-                tone="danger"
-                description={updateMutation.error.message}
-              />
-            ) : null}
-
             {isEditing ? (
               <ManagementCheckboxField
                 checked={form.isActive}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    isActive: event.target.checked,
-                  }))
+                  updateFormValue('isActive', event.target.checked)
                 }
                 label={t('active')}
                 className="lg:col-span-2"
