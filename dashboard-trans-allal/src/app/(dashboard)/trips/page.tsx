@@ -266,6 +266,7 @@ export default function TripsPage() {
   const createMutation = useMutation({
     mutationFn: (payload: typeof initialTripForm) =>
       apiClient.post<{ data: Trip }>(ENDPOINTS.TRIPS, {
+        companyId,
         origin: payload.origin.trim(),
         destination: payload.destination.trim(),
         scheduledAt: new Date(payload.scheduledAt).toISOString(),

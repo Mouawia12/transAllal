@@ -8,9 +8,9 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import Map, { Marker, NavigationControl } from 'react-map-gl/mapbox';
 import { CompanyScopeEmpty } from '../../../components/shared/company-scope-empty';
 import {
   ManagementDetailTile,
@@ -29,10 +29,6 @@ import {
   ToneBadge,
 } from '../../../components/shared/management-ui';
 import { apiClient } from '../../../lib/api/client';
-import {
-  dashboardRuntimeConfig,
-  hasUsableMapboxToken,
-} from '../../../lib/api/config';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { realtimeClient } from '../../../lib/api/realtime-client';
 import { tokenStore } from '../../../lib/auth/token-store';
@@ -54,11 +50,20 @@ interface DriverHistoryPoint {
   recordedAt: string;
 }
 
-const DEFAULT_VIEW = {
-  longitude: -1.22,
-  latitude: 28.03,
-  zoom: 4.2,
-};
+const LiveTrackingMap = dynamic(
+  () =>
+    import('../../../components/maps/live-tracking-map').then(
+      (module) => module.LiveTrackingMap,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center bg-[linear-gradient(135deg,#edf5ff_0%,#ffffff_52%,#f4f8f6_100%)] text-sm text-[var(--color-muted)]">
+        Loading map…
+      </div>
+    ),
+  },
+);
 
 function normalizeNullableNumber(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === '') {
@@ -165,14 +170,7 @@ export default function TrackingPage() {
   const [selectedDriver, setSelectedDriver] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [liveMap, setLiveMap] = useState<Record<string, LiveDriver>>({});
-  const [mapUnavailable, setMapUnavailable] = useState(false);
-  const [viewState, setViewState] = useState(DEFAULT_VIEW);
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
-  const hasMapToken = hasUsableMapboxToken(dashboardRuntimeConfig.mapboxToken);
-  const showLiveMap =
-    dashboardRuntimeConfig.mapProvider === 'mapbox' &&
-    hasMapToken &&
-    !mapUnavailable;
 
   const { data: fleetData, isLoading } = useQuery({
     queryKey: ['tracking', 'fleet', companyId],
@@ -229,7 +227,6 @@ export default function TrackingPage() {
     setSelectedDriver(null);
     setSearch('');
     setLiveMap({});
-    setViewState(DEFAULT_VIEW);
   }, [companyId]);
 
   useEffect(() => {
@@ -384,19 +381,6 @@ export default function TrackingPage() {
     }
   }, [displayedDrivers, selectedDriver]);
 
-  useEffect(() => {
-    if (!selected) {
-      return;
-    }
-
-    setViewState((current) => ({
-      ...current,
-      latitude: selected.lat,
-      longitude: selected.lng,
-      zoom: Math.max(current.zoom, 9.5),
-    }));
-  }, [selected]);
-
   const summary = useMemo(() => {
     const onlineCount = allDrivers.filter((driver) => driver.isOnline).length;
     const inTripCount = allDrivers.filter((driver) => Boolean(driver.tripId)).length;
@@ -469,10 +453,9 @@ export default function TrackingPage() {
         </div>
       </ManagementHero>
 
-      <div className="grid gap-5 md:gap-6 lg:grid-cols-[290px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_340px]">
+      <div className="grid gap-5 md:gap-6 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_300px]">
         <ManagementPanel
           title={t('tracking.driver_list_title')}
-          description={t('tracking.driver_list_description')}
           bodyClassName="space-y-4 p-0"
           headerSlot={
             <ToneBadge
@@ -602,7 +585,6 @@ export default function TrackingPage() {
 
         <ManagementPanel
           title={t('tracking.map_title')}
-          description={t('tracking.map_description')}
           bodyClassName="p-0"
           headerSlot={
             <ToneBadge
@@ -611,75 +593,12 @@ export default function TrackingPage() {
             />
           }
         >
-          <div className="relative min-h-[360px] overflow-hidden sm:min-h-[420px] lg:min-h-[500px] 2xl:min-h-[620px]">
-            {showLiveMap ? (
-              <Map
-                reuseMaps
-                mapboxAccessToken={dashboardRuntimeConfig.mapboxToken}
-                mapStyle="mapbox://styles/mapbox/streets-v12"
-                longitude={viewState.longitude}
-                latitude={viewState.latitude}
-                zoom={viewState.zoom}
-                onMove={(event) => setViewState(event.viewState)}
-                onError={() => setMapUnavailable(true)}
-              >
-                <NavigationControl position="top-right" />
-
-                {displayedDrivers.map((driver) => (
-                  <Marker
-                    key={driver.driverId}
-                    longitude={driver.lng}
-                    latitude={driver.lat}
-                    anchor="bottom"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDriver(driver.driverId)}
-                      aria-pressed={selectedDriver === driver.driverId}
-                      className={cn(
-                        'flex h-5 w-5 items-center justify-center rounded-full border-2 border-white shadow-lg transition motion-reduce:transition-none',
-                        selectedDriver === driver.driverId
-                          ? 'scale-125'
-                          : 'hover:scale-110',
-                        markerClassName(driver),
-                      )}
-                      aria-label={`${driver.firstName} ${driver.lastName}`}
-                    >
-                      <span className="sr-only">
-                        {driver.firstName} {driver.lastName}
-                      </span>
-                    </button>
-                  </Marker>
-                ))}
-              </Map>
-            ) : (
-              <div className="flex h-full flex-col justify-between bg-[linear-gradient(135deg,#f2f7f6_0%,#ffffff_50%,#edf5ff_100%)] p-4 sm:p-6">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
-                    {t('tracking.map_disabled_title')}
-                  </p>
-                  <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--color-muted)]">
-                    {t('tracking.map_disabled_description')}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  {displayedDrivers.slice(0, 6).map((driver) => (
-                    <ManagementSurfaceCard
-                      key={driver.driverId}
-                      className="rounded-2xl border-white/70 bg-white/78 p-4 shadow-[var(--shadow-panel)] backdrop-blur"
-                    >
-                      <p className="font-medium text-[var(--color-ink)]">
-                        {driver.firstName} {driver.lastName}
-                      </p>
-                      <p className="mt-1 text-xs text-[var(--color-muted)]">
-                        {driver.lat.toFixed(5)}, {driver.lng.toFixed(5)}
-                      </p>
-                    </ManagementSurfaceCard>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="relative h-[360px] overflow-hidden sm:h-[420px] lg:h-[520px] xl:h-[580px]">
+            <LiveTrackingMap
+              drivers={displayedDrivers}
+              selectedDriverId={selectedDriver}
+              onSelectDriver={setSelectedDriver}
+            />
 
             <div className="pointer-events-none absolute left-3 right-3 top-3 flex items-start justify-between gap-3 sm:left-4 sm:right-4 sm:top-4">
               <div className="pointer-events-auto max-w-[15rem] rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-lg backdrop-blur sm:max-w-md">
@@ -699,11 +618,10 @@ export default function TrackingPage() {
           </div>
         </ManagementPanel>
 
-        <div className="space-y-5 md:space-y-6 lg:col-span-2 2xl:col-span-1">
+        <div className="space-y-5 md:space-y-6 lg:col-span-2 xl:col-span-1">
           <ManagementPanel
             eyebrow={t('tracking.current_position')}
             title={t('tracking.current_position')}
-            description={t('tracking.current_position_description')}
             headerSlot={
               selected ? (
                 <ToneBadge

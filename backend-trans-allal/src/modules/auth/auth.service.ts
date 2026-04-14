@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { Repository } from 'typeorm';
 import { Role } from '../../common/enums/role.enum';
 import { Driver } from '../admin-business/drivers/driver.entity';
@@ -123,6 +123,7 @@ export class AuthService {
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.config.get<string>('auth.jwtRefreshSecret'),
       expiresIn: (this.config.get<string>('auth.jwtRefreshExpiresIn') ?? '7d') as unknown as number,
+      jwtid: randomUUID(),
     });
 
     const decoded = this.jwtService.decode(refreshToken) as { exp: number };

@@ -49,8 +49,33 @@ function truckStatusTone(isActive: boolean) {
     : 'border-slate-200 bg-slate-100 text-slate-600';
 }
 
-function formatCapacity(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+function parseCapacityValue(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    if (!normalized) {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function formatCapacity(value: unknown) {
+  const parsedValue = parseCapacityValue(value);
+  if (parsedValue === null) {
+    return null;
+  }
+
+  return Number.isInteger(parsedValue)
+    ? String(parsedValue)
+    : parsedValue.toFixed(1);
 }
 
 export default function TrucksPage() {
@@ -82,6 +107,7 @@ export default function TrucksPage() {
   const createMutation = useMutation({
     mutationFn: (payload: typeof initialTruckForm) =>
       apiClient.post<{ data: TruckEntity }>(ENDPOINTS.TRUCKS, {
+        companyId,
         plateNumber: payload.plateNumber.trim(),
         brand: payload.brand.trim() || undefined,
         model: payload.model.trim() || undefined,
@@ -150,7 +176,7 @@ export default function TrucksPage() {
   const totalPages = data?.meta?.totalPages ?? 1;
   const activeTrucks = trucks.filter((truck) => truck.isActive).length;
   const capacityInView = trucks.reduce(
-    (sum, truck) => sum + (truck.capacityTons ?? 0),
+    (sum, truck) => sum + (parseCapacityValue(truck.capacityTons) ?? 0),
     0,
   );
   const activeMutation = isEditing ? updateMutation : createMutation;
@@ -238,7 +264,7 @@ export default function TrucksPage() {
           <ManagementStatCard
             icon={Gauge}
             label={t('trucks_page.capacity_in_view')}
-            value={`${formatCapacity(capacityInView)} t`}
+            value={`${formatCapacity(capacityInView) ?? '0'} t`}
             note={t('trucks_page.capacity_note')}
             toneClassName="bg-cyan-400/18 text-cyan-50"
           />
@@ -459,7 +485,9 @@ export default function TrucksPage() {
                       {t('capacity')}
                     </p>
                     <p className="mt-1 text-sm text-[var(--color-ink)]">
-                      {truck.capacityTons != null ? `${truck.capacityTons} t` : '—'}
+                      {formatCapacity(truck.capacityTons) != null
+                        ? `${formatCapacity(truck.capacityTons)} t`
+                        : '—'}
                     </p>
                   </div>
                 </div>
@@ -538,7 +566,9 @@ export default function TrucksPage() {
                   <td
                     className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}
                   >
-                    {truck.capacityTons != null ? `${truck.capacityTons} t` : '—'}
+                    {formatCapacity(truck.capacityTons) != null
+                      ? `${formatCapacity(truck.capacityTons)} t`
+                      : '—'}
                   </td>
                   <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
                     <ToneBadge

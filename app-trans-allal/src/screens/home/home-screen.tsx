@@ -1,10 +1,26 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/auth.store';
 import { apiClient } from '@/services/api/client';
 import type { DriverProfile, Trip } from '@/types/api';
 import { appColors } from '@/theme/colors';
+
+function buildDriverName(profile: DriverProfile | null, fallbackName?: string) {
+  if (fallbackName?.trim()) {
+    return fallbackName.trim();
+  }
+
+  return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim();
+}
+
+function selectActiveTrip(trips: Trip[]): Trip | null {
+  return (
+    trips.find((trip) => trip.status === 'IN_PROGRESS') ??
+    trips.find((trip) => trip.status === 'PENDING') ??
+    null
+  );
+}
 
 export function HomeScreen() {
   const { t } = useTranslation();
@@ -19,12 +35,13 @@ export function HomeScreen() {
     try {
       const [prof, trips] = await Promise.all([
         apiClient<DriverProfile>('/drivers/me'),
-        apiClient<{ items: Trip[] }>('/trips/my?status=IN_PROGRESS&limit=1'),
+        apiClient<Trip[]>('/trips/my'),
       ]);
       setProfile(prof);
-      setActiveTrip(trips.items[0] ?? null);
+      setActiveTrip(selectActiveTrip(Array.isArray(trips) ? trips : []));
     } catch {
       // errors shown inline
+      setActiveTrip(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -48,8 +65,16 @@ export function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
       <View style={styles.header}>
-        <Text style={styles.greeting}>{t('home.title')}</Text>
-        <Text style={styles.name}>{user?.name ?? profile?.user?.name ?? ''}</Text>
+        <View style={styles.brandRow}>
+          <Image
+            source={require('../../assets/images/branding/brand-icon.png')}
+            style={styles.brandLogo}
+          />
+          <View style={styles.brandCopy}>
+            <Text style={styles.greeting}>{t('home.title')}</Text>
+            <Text style={styles.name}>{buildDriverName(profile, user?.name)}</Text>
+          </View>
+        </View>
 
         <View style={[styles.badge, profile?.isOnline ? styles.badgeOnline : styles.badgeOffline]}>
           <Text style={styles.badgeText}>
@@ -62,9 +87,9 @@ export function HomeScreen() {
         <Text style={styles.cardTitle}>{t('home.assignedTrip')}</Text>
         {activeTrip ? (
           <View>
-            <TripRow label={t('trip.origin')} value={activeTrip.originAddress} />
-            <TripRow label={t('trip.destination')} value={activeTrip.destinationAddress} />
-            <TripRow label={t('trip.status.IN_PROGRESS')} value={t('trip.status.IN_PROGRESS')} />
+            <TripRow label={t('trip.origin')} value={activeTrip.origin} />
+            <TripRow label={t('trip.destination')} value={activeTrip.destination} />
+            <TripRow label={t('home.status')} value={t(`trip.status.${activeTrip.status}`)} />
           </View>
         ) : (
           <Text style={styles.emptyText}>{t('home.noTrip')}</Text>
@@ -94,8 +119,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: 'flex-end',
   },
+  brandRow: {
+    width: '100%',
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    marginBottom: 12,
+  },
+  brandLogo: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+  },
+  brandCopy: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
   greeting: { fontSize: 13, color: appColors.light.muted, marginBottom: 4 },
-  name: { fontSize: 20, fontWeight: '700', color: appColors.light.text, marginBottom: 12 },
+  name: { fontSize: 20, fontWeight: '700', color: appColors.light.text },
   badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
   badgeOnline: { backgroundColor: '#d1fae5' },
   badgeOffline: { backgroundColor: '#f3f4f6' },

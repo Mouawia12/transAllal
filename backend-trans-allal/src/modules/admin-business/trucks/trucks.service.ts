@@ -15,16 +15,25 @@ export class TrucksService {
 
   async findAll(query: QueryTruckDto) {
     const { page, limit, companyId, isActive } = query;
-    const where: Record<string, unknown> = {};
-    if (companyId) where['companyId'] = companyId;
-    if (isActive !== undefined) where['isActive'] = isActive;
-    const [data, total] = await this.repo.findAndCount({
-      where,
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { createdAt: 'DESC' },
-      relations: ['company'],
-    });
+
+    const qb = this.repo
+      .createQueryBuilder('truck')
+      .leftJoinAndSelect('truck.company', 'company');
+
+    if (companyId) {
+      qb.andWhere('truck.companyId = :companyId', { companyId });
+    }
+
+    if (isActive !== undefined) {
+      qb.andWhere('truck.isActive = :isActive', { isActive });
+    }
+
+    const [data, total] = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .orderBy('truck.createdAt', 'DESC')
+      .getManyAndCount();
+
     return paginatedResponse(data, total, page, limit);
   }
 

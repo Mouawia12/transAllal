@@ -1,7 +1,29 @@
-import { Sidebar } from "./sidebar";
-import { Topbar } from "./topbar";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Sidebar } from './sidebar';
+import { Topbar } from './topbar';
+import { cn } from '../../lib/utils/cn';
+
+const SIDEBAR_STORAGE_KEY = 'trans-allal:dashboard-sidebar-open';
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const storedPreference = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (storedPreference === '0') {
+      setIsSidebarOpen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      SIDEBAR_STORAGE_KEY,
+      isSidebarOpen ? '1' : '0',
+    );
+  }, [isSidebarOpen]);
+
   return (
     <div className="relative min-h-screen overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -10,10 +32,22 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-white/35 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto grid max-w-[1600px] gap-2.5 lg:min-h-[calc(100dvh-1.5rem)] lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-3">
-        <Sidebar />
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-[26px] border border-[var(--color-border)] bg-[var(--color-panel-muted)] p-2.5 shadow-[var(--shadow-elevated)] backdrop-blur sm:rounded-[28px] sm:p-3 md:rounded-[30px] md:p-4">
-          <Topbar />
+      <div
+        className={cn(
+          'relative mx-auto grid max-w-[1600px] gap-2.5 lg:h-[calc(100dvh-2rem)] lg:gap-3',
+          isSidebarOpen
+            ? 'lg:grid-cols-[280px_minmax(0,1fr)]'
+            : 'lg:grid-cols-[minmax(0,1fr)]',
+        )}
+      >
+        {isSidebarOpen ? (
+          <Sidebar onHide={() => setIsSidebarOpen(false)} />
+        ) : null}
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-[26px] border border-[var(--color-border)] bg-[var(--color-panel-muted)] p-2.5 shadow-[var(--shadow-elevated)] backdrop-blur sm:rounded-[28px] sm:p-3 md:rounded-[30px] md:p-4 lg:h-full">
+          <Topbar
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
+          />
           <main className="mt-3 min-h-0 flex-1 overflow-y-auto overflow-x-hidden sm:mt-4 sm:pr-1">
             {children}
           </main>

@@ -9,7 +9,6 @@ import {
   OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
-  WebSocketServer,
   WsException,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
@@ -29,7 +28,6 @@ interface JwtPayload {
 export class TrackingGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
-  @WebSocketServer() private server: Server;
   private readonly logger = new Logger(TrackingGateway.name);
 
   constructor(
@@ -78,35 +76,11 @@ export class TrackingGateway
     const user = (client as Socket & { user: JwtPayload }).user;
     if (!user?.driverId) return;
 
-    const location = await this.trackingService.saveLocation(
+    await this.trackingService.saveLocation(
       user.driverId,
       user.companyId!,
       payload,
     );
-    this.server
-      .to(`company:${user.companyId}`)
-      .emit(WsEvents.DRIVER_LOCATION_UPDATED, {
-        driverId: user.driverId,
-        tripId: payload.tripId ?? null,
-        lat: location.lat,
-        lng: location.lng,
-        speedKmh: location.speedKmh,
-        heading: location.heading,
-        accuracyM: location.accuracyM,
-        recordedAt: location.recordedAt,
-      });
-    this.server
-      .to(`driver:${user.driverId}`)
-      .emit(WsEvents.DRIVER_LOCATION_UPDATED, {
-        driverId: user.driverId,
-        tripId: payload.tripId ?? null,
-        lat: location.lat,
-        lng: location.lng,
-        speedKmh: location.speedKmh,
-        heading: location.heading,
-        accuracyM: location.accuracyM,
-        recordedAt: location.recordedAt,
-      });
   }
 
   @SubscribeMessage(WsEvents.COMPANY_SUBSCRIBE)

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BarChart3,
   Building2,
+  ChevronsRight,
   LayoutDashboard,
   MapPin,
   Route,
@@ -17,6 +18,7 @@ import { useTranslations } from "next-intl";
 import { useAuthStore } from "../../lib/auth/auth-store";
 import type { Role } from "../../types/shared";
 import { cn } from "../../lib/utils/cn";
+import { BrandLogo } from "../shared/brand-logo";
 
 type NavItem = {
   key: string;
@@ -82,7 +84,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onHide }: { onHide: () => void }) {
   const pathname = usePathname();
   const t = useTranslations();
   const tNav = useTranslations("nav");
@@ -94,25 +96,41 @@ export function Sidebar() {
   );
 
   return (
-    <aside className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#101d21_0%,#10312f_55%,#0d2626_100%)] text-white shadow-[var(--shadow-elevated)] lg:sticky lg:top-3 lg:max-h-[calc(100dvh-1.5rem)] lg:rounded-[30px]">
+    <aside
+      id="dashboard-sidebar"
+      className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#101d21_0%,#10312f_55%,#0d2626_100%)] text-white shadow-[var(--shadow-elevated)] lg:sticky lg:top-0 lg:h-full lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:rounded-[30px]"
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_38%)]" />
 
       <div className="relative flex h-full flex-col p-3 lg:p-3.5">
         <div className="rounded-[22px] border border-white/10 bg-white/8 p-3 lg:rounded-[24px] lg:p-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">
-            {t("dashboard_shell.sidebar_eyebrow")}
-          </p>
-          <div className="mt-2 flex items-start justify-between gap-3 lg:mt-2.5">
-            <div className="min-w-0">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55">
+              {t("dashboard_shell.sidebar_eyebrow")}
+            </p>
+            <button
+              type="button"
+              onClick={onHide}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/6 text-white/70 transition hover:bg-white/10 hover:text-white motion-reduce:transition-none"
+              aria-label={t("dashboard_shell.hide_sidebar")}
+              title={t("dashboard_shell.hide_sidebar")}
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+          <div className="mt-2 flex items-start gap-3 lg:mt-2.5">
+            <BrandLogo
+              size={68}
+              priority
+              className="rounded-[24px] border-white/15 bg-white/10 shadow-[0_22px_44px_rgba(0,0,0,0.26)]"
+            />
+            <div className="min-w-0 flex-1">
               <h2 className="text-[1.45rem] font-semibold tracking-tight text-white lg:text-[1.65rem]">
                 Trans Allal
               </h2>
               <p className="mt-1 hidden line-clamp-2 text-sm leading-6 text-white/65 sm:block">
                 {t("dashboard_shell.sidebar_summary")}
               </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-2 lg:p-2.5">
-              <LayoutDashboard className="h-5 w-5 text-white" />
             </div>
           </div>
           {role ? (
@@ -135,18 +153,24 @@ export function Sidebar() {
                   key={key}
                   href={href}
                   className={cn(
-                    "group flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:bg-white/12 motion-reduce:transition-none lg:gap-3",
+                    "group relative flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:bg-white/12 motion-reduce:transition-none lg:gap-3",
                     active
-                      ? "bg-white text-[color:var(--color-brand-deep)] shadow-[0_16px_30px_rgba(0,0,0,0.18)]"
-                      : "text-white/72 hover:bg-white/8 hover:text-white",
+                      ? "border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.12)_0%,rgba(12,107,88,0.24)_100%)] text-white shadow-[0_16px_30px_rgba(0,0,0,0.18)]"
+                      : "border border-transparent text-white/72 hover:bg-white/8 hover:text-white",
                   )}
                   aria-current={active ? "page" : undefined}
                 >
+                  {active ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-2 top-2 start-1 w-1 rounded-full bg-emerald-300"
+                    />
+                  ) : null}
                   <span
                     className={cn(
                       "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition-colors",
                       active
-                        ? "border-[rgba(12,107,88,0.12)] bg-[rgba(12,107,88,0.08)] text-[var(--color-brand)]"
+                        ? "border-emerald-300/25 bg-white/12 text-emerald-100"
                         : "border-white/10 bg-white/6 text-white/70 group-hover:border-white/20 group-hover:text-white",
                     )}
                   >
@@ -160,7 +184,7 @@ export function Sidebar() {
                       className={cn(
                         "hidden h-2.5 w-2.5 rounded-full transition-opacity lg:block",
                         active
-                          ? "bg-[var(--color-brand)] opacity-100"
+                          ? "bg-emerald-300 opacity-100"
                           : "bg-white/20 opacity-0 group-hover:opacity-100",
                       )}
                     />

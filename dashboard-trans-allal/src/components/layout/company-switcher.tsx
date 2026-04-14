@@ -11,7 +11,13 @@ import { useCompanyScopeStore } from '../../lib/company/company-scope-store';
 import { cn } from '../../lib/utils/cn';
 import type { ApiResponse, Company } from '../../types/shared';
 
-export function CompanySwitcher({ className }: { className?: string }) {
+export function CompanySwitcher({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const t = useTranslations();
   const user = useAuthStore((state) => state.user);
   const currentUserId = user?.id ?? null;
@@ -130,7 +136,8 @@ export function CompanySwitcher({ className }: { className?: string }) {
     <div
       aria-busy={isBusy || undefined}
       className={cn(
-        'flex w-full min-w-0 items-center gap-2 rounded-2xl border px-3 py-2 shadow-sm transition motion-reduce:transition-none focus-within:border-[rgba(12,107,88,0.24)] focus-within:bg-white/84 focus-within:shadow-[0_0_0_4px_rgba(12,107,88,0.08)] sm:w-auto sm:min-w-[240px] xl:min-w-[260px]',
+        'flex w-full min-w-0 items-center gap-2 rounded-2xl border shadow-sm transition motion-reduce:transition-none focus-within:border-[rgba(12,107,88,0.24)] focus-within:bg-white/84 focus-within:shadow-[0_0_0_4px_rgba(12,107,88,0.08)] sm:w-auto',
+        compact ? 'px-2.5 py-2 sm:min-w-[220px] xl:min-w-[240px]' : 'px-3 py-2 sm:min-w-[240px] xl:min-w-[260px]',
         isSwitchingScope
           ? 'border-[rgba(12,107,88,0.2)] bg-white/84 shadow-[0_0_0_4px_rgba(12,107,88,0.08)]'
           : 'border-[var(--color-border)] bg-white/72',
@@ -145,27 +152,49 @@ export function CompanySwitcher({ className }: { className?: string }) {
         )}
       </div>
       <div className="relative min-w-0 flex-1">
-        <label
-          htmlFor="company-scope"
-          className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-muted)] sm:text-[11px]"
-        >
-          {t('company_scope.label')}
-        </label>
+        {!compact ? (
+          <label
+            htmlFor="company-scope"
+            className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-muted)] sm:text-[11px]"
+          >
+            {t('company_scope.label')}
+          </label>
+        ) : null}
         {isSwitchingScope ? (
           <p
             aria-live="polite"
-            className="mt-1 text-[11px] font-medium text-[var(--color-brand)]"
+            className={cn(
+              'text-[11px] font-medium text-[var(--color-brand)]',
+              compact ? 'mb-1' : 'mt-1',
+            )}
           >
             {t('company_scope.switching')}
           </p>
         ) : null}
-        <div className={cn('relative', isSwitchingScope ? 'mt-2' : 'mt-1')}>
+        <div
+          className={cn(
+            'relative',
+            compact
+              ? isSwitchingScope
+                ? 'mt-0'
+                : 'mt-0'
+              : isSwitchingScope
+                ? 'mt-2'
+                : 'mt-1',
+          )}
+        >
           <div
             aria-hidden="true"
-            className="flex min-h-11 items-center gap-3 rounded-xl border border-transparent bg-[rgba(15,23,42,0.03)] px-3 py-2.5"
+            className={cn(
+              'flex items-center gap-3 rounded-xl border border-transparent bg-[rgba(15,23,42,0.03)] px-3',
+              compact ? 'min-h-10 py-2' : 'min-h-11 py-2.5',
+            )}
           >
             <p
-              className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--color-ink)] sm:text-sm"
+              className={cn(
+                'min-w-0 flex-1 truncate font-medium text-[var(--color-ink)]',
+                compact ? 'text-[13px]' : 'text-[13px] sm:text-sm',
+              )}
               title={selectedCompany?.name ?? companyLabel}
             >
               {companyLabel}

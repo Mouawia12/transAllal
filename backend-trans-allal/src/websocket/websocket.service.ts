@@ -55,6 +55,40 @@ export class WebsocketService {
       });
   }
 
+  emitDriverLocation(location: {
+    companyId: string;
+    driverId: string;
+    tripId: string | null;
+    lat: number;
+    lng: number;
+    speedKmh: number | null;
+    heading: number | null;
+    accuracyM: number | null;
+    recordedAt: Date;
+  }): void {
+    if (!this.server) {
+      return;
+    }
+
+    const payload = {
+      driverId: location.driverId,
+      tripId: location.tripId,
+      lat: location.lat,
+      lng: location.lng,
+      speedKmh: location.speedKmh,
+      heading: location.heading,
+      accuracyM: location.accuracyM,
+      recordedAt: location.recordedAt,
+    };
+
+    this.server
+      .to(`company:${location.companyId}`)
+      .emit(WsEvents.DRIVER_LOCATION_UPDATED, payload);
+    this.server
+      .to(`driver:${location.driverId}`)
+      .emit(WsEvents.DRIVER_LOCATION_UPDATED, payload);
+  }
+
   getReadiness() {
     return {
       port: this.configService.get<number>('websocket.port') ?? 3002,

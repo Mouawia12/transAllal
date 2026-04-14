@@ -94,13 +94,38 @@ export class DriversService {
     companyId?: string,
   ): Promise<Driver> {
     const driver = await this.findOne(id, companyId);
-    Object.assign(driver, dto);
+    const {
+      firstName,
+      lastName,
+      phone,
+      licenseNumber,
+      licenseExpiry,
+      isActive,
+      initialPassword,
+    } = dto;
+
+    Object.assign(driver, {
+      ...(firstName !== undefined && { firstName }),
+      ...(lastName !== undefined && { lastName }),
+      ...(phone !== undefined && { phone }),
+      ...(licenseNumber !== undefined && { licenseNumber }),
+      ...(licenseExpiry !== undefined && { licenseExpiry }),
+      ...(isActive !== undefined && { isActive }),
+    });
     await this.repo.save(driver);
-    if (dto.firstName || dto.lastName || dto.isActive !== undefined) {
+    if (
+      firstName !== undefined ||
+      lastName !== undefined ||
+      isActive !== undefined ||
+      initialPassword?.trim()
+    ) {
       await this.userRepo.update(driver.userId, {
-        ...(dto.firstName && { firstName: dto.firstName }),
-        ...(dto.lastName && { lastName: dto.lastName }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(firstName !== undefined && { firstName }),
+        ...(lastName !== undefined && { lastName }),
+        ...(isActive !== undefined && { isActive }),
+        ...(initialPassword?.trim() && {
+          password: await bcrypt.hash(initialPassword.trim(), 10),
+        }),
       });
     }
     return this.findOne(id, companyId);

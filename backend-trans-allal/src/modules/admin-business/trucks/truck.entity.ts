@@ -9,6 +9,20 @@ import {
 } from 'typeorm';
 import { Company } from '../companies/company.entity';
 
+const numericColumnTransformer = {
+  to: (value: number | null) => value,
+  from: (value: string | number | null) => {
+    if (value === null) {
+      return null;
+    }
+
+    const parsedValue =
+      typeof value === 'number' ? value : Number.parseFloat(value);
+
+    return Number.isFinite(parsedValue) ? parsedValue : null;
+  },
+};
+
 @Entity('trucks')
 export class Truck {
   @PrimaryGeneratedColumn('uuid')
@@ -39,6 +53,7 @@ export class Truck {
     precision: 8,
     scale: 2,
     nullable: true,
+    transformer: numericColumnTransformer,
   })
   capacityTons: number | null;
 

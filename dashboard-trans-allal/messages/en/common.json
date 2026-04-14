@@ -196,7 +196,9 @@
     "restore_retry": "Try again",
     "redirect_title": "Redirecting to sign in",
     "redirect_description": "Your session is no longer available, so the dashboard is sending you back to the access screen.",
-    "secure_session": "Secure session"
+    "secure_session": "Secure session",
+    "hide_sidebar": "Hide sidebar",
+    "show_sidebar": "Show sidebar"
   },
   "overview": {
     "total_trips": "Total Trips",
@@ -279,7 +281,8 @@
     "license_expiry_required": "Select the license expiry date.",
     "license_expiry_invalid": "Enter a valid license expiry date.",
     "license_expiry_past": "The license expiry date cannot be in the past.",
-    "initial_password_short": "The initial password must be at least 6 characters if provided.",
+    "password_short": "The password must be at least 6 characters if provided.",
+    "password_update_help": "Leave the password field empty to keep the current password unchanged. Enter a new value only when you want to update it.",
     "create_success_title": "Driver created successfully",
     "create_success_description": "The driver profile is now available in the register and ready for assignment.",
     "update_success_title": "Driver updated successfully",

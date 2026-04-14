@@ -25,6 +25,7 @@ import {
   normalizeAuthRedirectReason,
   normalizeNextPath,
 } from '../../../lib/auth/navigation';
+import { BrandLogo } from '../../../components/shared/brand-logo';
 
 type LoginFormValues = {
   email: string;
@@ -286,8 +287,15 @@ export default function SignInPage() {
       <div className="relative mx-auto flex min-h-[calc(100dvh-1.5rem)] max-w-6xl items-center justify-center">
         <div className="w-full max-w-md rounded-[28px] border border-white/50 bg-white/70 p-6 shadow-[0_40px_120px_rgba(23,18,14,0.18)] backdrop-blur-xl sm:p-7">
           <div className="mx-auto flex max-w-sm flex-col items-center text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(12,107,88,0.1)] text-[color:var(--color-brand)] shadow-[0_10px_30px_rgba(12,107,88,0.12)]">
-              {icon}
+            <div className="relative">
+              <BrandLogo
+                size={72}
+                priority
+                className="rounded-[24px] border-[rgba(12,107,88,0.14)] bg-white"
+              />
+              <div className="absolute -bottom-2 -right-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(12,107,88,0.1)] text-[color:var(--color-brand)] shadow-[0_10px_30px_rgba(12,107,88,0.18)]">
+                {icon}
+              </div>
             </div>
             <div className="mt-5 inline-flex items-center rounded-full bg-[rgba(12,107,88,0.08)] px-3 py-1 text-xs font-semibold tracking-[0.22em] text-[color:var(--color-brand)] uppercase">
               {t('auth.formEyebrow')}
@@ -349,9 +357,21 @@ export default function SignInPage() {
               <div className="absolute bottom-10 right-12 h-24 w-24 rounded-full border border-white/15" />
 
               <div className="relative flex h-full flex-col">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold tracking-[0.28em] text-white/80 uppercase">
-                  <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_20px_rgba(110,231,183,0.9)]" />
-                  {t('auth.panelEyebrow')}
+                <div className="flex items-center gap-3">
+                  <BrandLogo
+                    size={64}
+                    priority
+                    className="rounded-[24px] border-white/15 bg-white/10 shadow-[0_24px_50px_rgba(0,0,0,0.22)]"
+                  />
+                  <div>
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold tracking-[0.28em] text-white/80 uppercase">
+                      <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_20px_rgba(110,231,183,0.9)]" />
+                      {t('auth.panelEyebrow')}
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-white/72">
+                      Trans Allal
+                    </p>
+                  </div>
                 </div>
 
                 <div className="mt-5 max-w-2xl">

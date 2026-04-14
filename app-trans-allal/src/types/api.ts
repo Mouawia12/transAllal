@@ -32,32 +32,29 @@ export interface CurrentUser {
 export interface Trip {
   id: string;
   status: TripStatus;
-  originAddress: string;
-  destinationAddress: string;
-  originLat: number;
-  originLng: number;
-  destinationLat: number;
-  destinationLng: number;
+  origin: string;
+  destination: string;
+  originLat: number | null;
+  originLng: number | null;
+  destinationLat: number | null;
+  destinationLng: number | null;
   scheduledAt: string;
   startedAt: string | null;
   completedAt: string | null;
   truck?: {
     id: string;
     plateNumber: string;
-    brand: string;
-    model: string;
-  };
+    brand: string | null;
+    model: string | null;
+  } | null;
 }
 
 export interface DriverProfile {
   id: string;
+  firstName: string;
+  lastName: string;
   licenseNumber: string;
   phone: string;
   isOnline: boolean;
   lastSeenAt: string | null;
-  user: {
-    id: string;
-    name: string;
-    phone: string;
-  };
 }

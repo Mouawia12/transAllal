@@ -71,7 +71,7 @@ export class TripsService {
       relations: ['truck'],
       order: { scheduledAt: 'DESC' },
     });
-    return paginatedResponse(data, total, 1, data.length);
+    return paginatedResponse(data, total, 1, Math.max(data.length, 1));
   }
 
   async create(dto: CreateTripDto): Promise<Trip> {

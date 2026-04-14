@@ -45,6 +45,19 @@ export class TrackingService {
     );
 
     await this.driverRepo.update(driverId, { lastSeenAt: new Date() });
+    this.websocketService.emitDriverLocation({
+      companyId,
+      driverId,
+      tripId: location.tripId,
+      lat: Number(location.lat),
+      lng: Number(location.lng),
+      speedKmh:
+        location.speedKmh === null ? null : Number(location.speedKmh),
+      heading: location.heading,
+      accuracyM:
+        location.accuracyM === null ? null : Number(location.accuracyM),
+      recordedAt: location.recordedAt,
+    });
 
     if (dto.speedKmh && dto.speedKmh > SPEEDING_THRESHOLD_KMH) {
       await this.alertsService.create({

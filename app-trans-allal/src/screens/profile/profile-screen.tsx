@@ -7,6 +7,10 @@ import { useAuthStore } from '@/store/auth.store';
 import type { DriverProfile } from '@/types/api';
 import { appColors } from '@/theme/colors';
 
+function buildDriverName(profile: DriverProfile | null) {
+  return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim();
+}
+
 export function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -48,7 +52,7 @@ export function ProfileScreen() {
     >
       {/* Status badge */}
       <View style={styles.headerCard}>
-        <Text style={styles.driverName}>{profile?.user?.name ?? ''}</Text>
+        <Text style={styles.driverName}>{buildDriverName(profile)}</Text>
         <View
           style={[
             styles.statusBadge,
@@ -63,8 +67,8 @@ export function ProfileScreen() {
 
       {/* Info rows */}
       <View style={styles.card}>
-        <ProfileRow label={t('profile.name')} value={profile?.user?.name ?? ''} />
-        <ProfileRow label={t('profile.phone')} value={profile?.user?.phone ?? profile?.phone ?? ''} />
+        <ProfileRow label={t('profile.name')} value={buildDriverName(profile)} />
+        <ProfileRow label={t('profile.phone')} value={profile?.phone ?? ''} />
         <ProfileRow label={t('profile.license')} value={profile?.licenseNumber ?? ''} isLast />
       </View>
 

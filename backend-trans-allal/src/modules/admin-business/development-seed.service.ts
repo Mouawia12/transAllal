@@ -92,6 +92,15 @@ export class DevelopmentSeedService implements OnApplicationBootstrap {
           isActive: true,
         }),
       );
+    } else {
+      await this.userRepo.update(superAdmin.id, {
+        password: superAdminHash,
+        firstName: 'Super',
+        lastName: 'Admin',
+        role: Role.SUPER_ADMIN,
+        companyId: null,
+        isActive: true,
+      });
     }
 
     let companyAdmin = await this.userRepo.findOne({
@@ -109,6 +118,15 @@ export class DevelopmentSeedService implements OnApplicationBootstrap {
           isActive: true,
         }),
       );
+    } else {
+      await this.userRepo.update(companyAdmin.id, {
+        password: companyAdminHash,
+        firstName: 'Company',
+        lastName: 'Admin',
+        role: Role.COMPANY_ADMIN,
+        companyId: company.id,
+        isActive: true,
+      });
     }
 
     let driver = await this.driverRepo.findOne({
@@ -142,6 +160,25 @@ export class DevelopmentSeedService implements OnApplicationBootstrap {
           isOnline: false,
         }),
       );
+    } else {
+      await this.userRepo.update(driver.userId, {
+        password: driverHash,
+        firstName: driverFirstName,
+        lastName: driverLastName,
+        role: Role.DRIVER,
+        companyId: company.id,
+        isActive: true,
+      });
+
+      await this.driverRepo.update(driver.id, {
+        companyId: company.id,
+        firstName: driverFirstName,
+        lastName: driverLastName,
+        phone: driverPhone,
+        licenseNumber: driverLicenseNumber,
+        licenseExpiry: driverLicenseExpiry,
+        isActive: true,
+      });
     }
 
     this.logger.log(

@@ -1,6 +1,6 @@
 export const apiEndpoints = {
   auth: {
-    signIn: '/auth/sign-in',
+    signIn: '/auth/login',
     refresh: '/auth/refresh',
   },
   trips: '/trips',

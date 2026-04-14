@@ -36,10 +36,11 @@ export function TripScreen() {
 
   const load = useCallback(async () => {
     try {
-      const result = await apiClient<{ items: Trip[] }>('/trips/my');
-      setTrips(result.items);
+      const result = await apiClient<Trip[]>('/trips/my');
+      setTrips(Array.isArray(result) ? result : []);
     } catch {
       // errors shown inline
+      setTrips([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -146,12 +147,12 @@ function TripCard({
 
       <View style={styles.row}>
         <Text style={styles.rowLabel}>{t('trip.origin')}</Text>
-        <Text style={styles.rowValue}>{trip.originAddress}</Text>
+        <Text style={styles.rowValue}>{trip.origin}</Text>
       </View>
 
       <View style={[styles.row, styles.rowLast]}>
         <Text style={styles.rowLabel}>{t('trip.destination')}</Text>
-        <Text style={styles.rowValue}>{trip.destinationAddress}</Text>
+        <Text style={styles.rowValue}>{trip.destination}</Text>
       </View>
 
       {trip.status === 'IN_PROGRESS' || trip.status === 'PENDING' ? (

@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BadgeCheck,
+  Eye,
+  EyeOff,
   KeyRound,
   Plus,
   Radio,
@@ -21,6 +23,7 @@ import {
   ManagementFormActions,
   ManagementHero,
   ManagementInputField,
+  MANAGEMENT_FIELD_CLASSNAME,
   MANAGEMENT_TABLE_CELL_CLASSNAME,
   MANAGEMENT_TABLE_HEAD_CLASSNAME,
   ManagementInlineState,
@@ -135,12 +138,8 @@ function validateDriverForm(
     errors.licenseExpiry = t('drivers_page.license_expiry_past');
   }
 
-  if (
-    !isEditing &&
-    form.initialPassword.trim() &&
-    form.initialPassword.trim().length < 6
-  ) {
-    errors.initialPassword = t('drivers_page.initial_password_short');
+  if (form.initialPassword.trim() && form.initialPassword.trim().length < 6) {
+    errors.initialPassword = t('drivers_page.password_short');
   }
 
   return errors;
@@ -199,6 +198,7 @@ export default function DriversPage() {
   const [form, setForm] = useState(initialDriverForm);
   const [formErrors, setFormErrors] = useState<DriverFormErrors>({});
   const [feedback, setFeedback] = useState<DriverFeedback | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const canManageDrivers =
     user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
@@ -221,6 +221,7 @@ export default function DriversPage() {
       apiClient.post<{ data: { driver: Driver; temporaryPassword?: string } }>(
         ENDPOINTS.DRIVERS,
         {
+          companyId,
           firstName: payload.firstName.trim(),
           lastName: payload.lastName.trim(),
           phone: payload.phone.trim(),
@@ -262,6 +263,7 @@ export default function DriversPage() {
         licenseNumber: payload.licenseNumber.trim(),
         licenseExpiry: payload.licenseExpiry,
         isActive: payload.isActive,
+        initialPassword: payload.initialPassword.trim() || undefined,
       }),
     onSuccess: () => {
       setFeedback({
@@ -344,6 +346,7 @@ export default function DriversPage() {
     setForm(initialDriverForm);
     setFormErrors({});
     setFeedback(null);
+    setShowPassword(false);
     createMutation.reset();
     updateMutation.reset();
   };
@@ -354,6 +357,7 @@ export default function DriversPage() {
     setEditingDriverId(null);
     setForm(initialDriverForm);
     setFormErrors({});
+    setShowPassword(false);
     setShowCreate(true);
     createMutation.reset();
     updateMutation.reset();
@@ -373,6 +377,7 @@ export default function DriversPage() {
       isActive: driver.isActive,
     });
     setFormErrors({});
+    setShowPassword(false);
     setShowCreate(true);
     createMutation.reset();
     updateMutation.reset();
@@ -583,30 +588,51 @@ export default function DriversPage() {
                 <p className="text-xs leading-5 text-red-600">{formErrors.licenseExpiry}</p>
               ) : null}
             </ManagementField>
-            {!isEditing ? (
-              <ManagementField
-                label={t('initial_password')}
-                optionalLabel={t('optional')}
-              >
-                <ManagementInputField
+            <ManagementField
+              label={isEditing ? t('password') : t('initial_password')}
+              optionalLabel={t('optional')}
+            >
+              <div className="relative">
+                <input
+                  id="driver-password"
+                  type={showPassword ? 'text' : 'password'}
                   value={form.initialPassword}
                   aria-invalid={Boolean(formErrors.initialPassword)}
+                  className={`${MANAGEMENT_FIELD_CLASSNAME} w-full pe-11`}
                   onChange={(event) =>
                     updateFormValue('initialPassword', event.target.value)
                   }
                 />
-                {formErrors.initialPassword ? (
-                  <p className="text-xs leading-5 text-red-600">
-                    {formErrors.initialPassword}
-                  </p>
-                ) : null}
-              </ManagementField>
-            ) : null}
+                <button
+                  type="button"
+                  aria-controls="driver-password"
+                  aria-pressed={showPassword}
+                  aria-label={
+                    showPassword
+                      ? t('auth.hidePassword')
+                      : t('auth.showPassword')
+                  }
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="absolute end-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[var(--color-muted)] transition hover:bg-[rgba(15,23,42,0.06)] hover:text-[var(--color-ink)] motion-reduce:transition-none"
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {formErrors.initialPassword ? (
+                <p className="text-xs leading-5 text-red-600">
+                  {formErrors.initialPassword}
+                </p>
+              ) : null}
+            </ManagementField>
 
             <ManagementCallout
               className="lg:col-span-2"
               tone="info"
-              description={t('temporary_password_help')}
+              description={
+                isEditing
+                  ? t('drivers_page.password_update_help')
+                  : t('temporary_password_help')
+              }
             />
 
             {isEditing ? (

@@ -2,13 +2,14 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -27,14 +28,18 @@ type SignInFormValues = {
   password: string;
 };
 
+const BRAND_ICON = require('../../assets/images/branding/brand-icon.png');
+
 export function SignInScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { login, isLoading } = useAuthStore();
+  const { height } = useWindowDimensions();
   const isRTL = i18n.dir() === 'rtl';
+  const isCompactHeight = height < 780;
   const textAlign = isRTL ? 'right' : 'left';
   const rowDirection = { flexDirection: isRTL ? 'row-reverse' : 'row' } as const;
-  const alignItems = { alignItems: isRTL ? 'flex-end' : 'flex-start' } as const;
+  const formHeaderAlignment = { alignItems: isRTL ? 'flex-end' : 'flex-start' } as const;
 
   const signInSchema = z.object({
     phone: z
@@ -107,49 +112,46 @@ export function SignInScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.hero}>
+        <View style={[styles.screen, isCompactHeight && styles.screenCompact]}>
+          <View style={[styles.heroCard, isCompactHeight && styles.heroCardCompact]}>
             <View style={styles.heroGlowPrimary} />
-            <View style={styles.heroGlowAccent} />
+            <View style={styles.heroGlowSecondary} />
 
-            <View style={[styles.brandPill, rowDirection]}>
-              <MaterialIcons name="local-shipping" size={16} color="#f7fbfa" />
-              <Text style={styles.brandPillText}>{t('common.appName')}</Text>
+            <View style={[styles.brandBadge, rowDirection]}>
+              <Image source={BRAND_ICON} style={styles.brandBadgeLogo} />
+              <Text style={styles.brandBadgeText}>{t('common.appName')}</Text>
             </View>
 
-            <View style={[styles.heroCopy, alignItems]}>
-              <Text style={[styles.heroTitle, { textAlign }]}>{t('auth.welcomeBack')}</Text>
-              <Text style={[styles.heroSubtitle, { textAlign }]}>{t('auth.subtitle')}</Text>
-            </View>
-
-            <View style={[styles.heroHighlights, alignItems]}>
-              <View style={[styles.highlightPill, rowDirection]}>
-                <MaterialIcons name="verified-user" size={16} color="#d2efe8" />
-                <Text style={styles.highlightText}>{t('auth.secureAccess')}</Text>
-              </View>
-              <View style={[styles.highlightPillSecondary, rowDirection]}>
-                <MaterialIcons name="badge" size={16} color="#ffe1d2" />
-                <Text style={styles.highlightSecondaryText}>{t('auth.driverPortal')}</Text>
+            <View style={[styles.logoWrap, isCompactHeight && styles.logoWrapCompact]}>
+              <View style={styles.logoPlate}>
+                <Image
+                  source={BRAND_ICON}
+                  style={[styles.logoImage, isCompactHeight && styles.logoImageCompact]}
+                />
               </View>
             </View>
+
+            <Text style={[styles.heroTitle, isCompactHeight && styles.heroTitleCompact]}>
+              {t('auth.welcomeBack')}
+            </Text>
+            <Text style={[styles.heroSubtitle, isCompactHeight && styles.heroSubtitleCompact]}>
+              {t('auth.subtitle')}
+            </Text>
           </View>
 
-          <View style={styles.card}>
-            <View style={[styles.cardHeader, alignItems]}>
-              <Text style={[styles.cardEyebrow, { textAlign }]}>{t('auth.formEyebrow')}</Text>
-              <Text style={[styles.cardTitle, { textAlign }]}>{t('auth.signIn')}</Text>
-              <Text style={[styles.cardDescription, { textAlign }]}>
-                {t('auth.formDescription')}
+          <View style={[styles.formCard, isCompactHeight && styles.formCardCompact]}>
+            <View style={[styles.formHeader, formHeaderAlignment]}>
+              <Text style={[styles.formEyebrow, { textAlign }]}>
+                {t('auth.formEyebrow')}
+              </Text>
+              <Text style={[styles.formTitle, isCompactHeight && styles.formTitleCompact]}>
+                {t('auth.signIn')}
               </Text>
             </View>
 
-            <View style={styles.field}>
+            <View style={[styles.field, isCompactHeight && styles.fieldCompact]}>
               <Text style={[styles.label, { textAlign }]}>{t('auth.phone')}</Text>
               <Controller
                 control={control}
@@ -158,6 +160,7 @@ export function SignInScreen() {
                   <View
                     style={[
                       styles.inputShell,
+                      isCompactHeight && styles.inputShellCompact,
                       rowDirection,
                       errors.phone && styles.inputShellError,
                     ]}
@@ -168,7 +171,7 @@ export function SignInScreen() {
                       color={errors.phone ? '#b91c1c' : appColors.light.primary}
                     />
                     <TextInput
-                      style={[styles.input, { textAlign }]}
+                      style={[styles.input, isCompactHeight && styles.inputCompact, { textAlign }]}
                       placeholder={t('auth.phonePlaceholder')}
                       placeholderTextColor="#8a7f73"
                       value={value}
@@ -192,7 +195,7 @@ export function SignInScreen() {
               ) : null}
             </View>
 
-            <View style={styles.field}>
+            <View style={[styles.field, isCompactHeight && styles.fieldCompact]}>
               <Text style={[styles.label, { textAlign }]}>{t('auth.password')}</Text>
               <Controller
                 control={control}
@@ -201,6 +204,7 @@ export function SignInScreen() {
                   <View
                     style={[
                       styles.inputShell,
+                      isCompactHeight && styles.inputShellCompact,
                       rowDirection,
                       errors.password && styles.inputShellError,
                     ]}
@@ -211,7 +215,7 @@ export function SignInScreen() {
                       color={errors.password ? '#b91c1c' : appColors.light.primary}
                     />
                     <TextInput
-                      style={[styles.input, { textAlign }]}
+                      style={[styles.input, isCompactHeight && styles.inputCompact, { textAlign }]}
                       placeholder={t('auth.passwordPlaceholder')}
                       placeholderTextColor="#8a7f73"
                       value={value}
@@ -229,7 +233,11 @@ export function SignInScreen() {
                       onSubmitEditing={() => void submitSignIn()}
                     />
                     <Pressable
-                      style={[styles.visibilityButton, rowDirection]}
+                      style={[
+                        styles.visibilityButton,
+                        rowDirection,
+                        isCompactHeight && styles.visibilityButtonCompact,
+                      ]}
                       onPress={() => setIsPasswordVisible((current) => !current)}
                     >
                       <MaterialIcons
@@ -259,7 +267,11 @@ export function SignInScreen() {
             ) : null}
 
             <Pressable
-              style={[styles.button, isLoading && styles.buttonDisabled]}
+              style={[
+                styles.button,
+                isCompactHeight && styles.buttonCompact,
+                isLoading && styles.buttonDisabled,
+              ]}
               onPress={() => void submitSignIn()}
               disabled={isLoading}
             >
@@ -269,15 +281,13 @@ export function SignInScreen() {
                 ) : (
                   <MaterialIcons name="login" size={20} color="#fff" />
                 )}
-                <Text style={styles.buttonText}>
+                <Text style={styles.buttonLabel}>
                   {isLoading ? t('auth.signingIn') : t('auth.signIn')}
                 </Text>
               </View>
             </Pressable>
-
-            <Text style={[styles.footerNote, { textAlign }]}>{t('auth.signInNote')}</Text>
           </View>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -286,166 +296,202 @@ export function SignInScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f3ede4',
+    backgroundColor: '#efe7db',
   },
   container: {
     flex: 1,
-    backgroundColor: '#f3ede4',
   },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 28,
+  screen: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 16,
+    justifyContent: 'space-between',
+    gap: 14,
   },
-  hero: {
+  screenCompact: {
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 10,
+  },
+  heroCard: {
     position: 'relative',
     overflow: 'hidden',
     borderRadius: 30,
-    backgroundColor: '#113931',
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 58,
-    shadowColor: '#0a231d',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.2,
-    shadowRadius: 22,
+    backgroundColor: '#0a4e45',
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 20,
+    alignItems: 'center',
+    shadowColor: '#082b28',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
     elevation: 8,
+  },
+  heroCardCompact: {
+    borderRadius: 26,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 16,
   },
   heroGlowPrimary: {
     position: 'absolute',
-    top: -56,
-    right: -34,
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    backgroundColor: 'rgba(61, 160, 134, 0.26)',
+    top: -44,
+    right: -10,
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    backgroundColor: 'rgba(78, 175, 149, 0.22)',
   },
-  heroGlowAccent: {
+  heroGlowSecondary: {
     position: 'absolute',
-    bottom: -34,
+    bottom: -52,
     left: -18,
-    width: 138,
-    height: 138,
-    borderRadius: 69,
-    backgroundColor: 'rgba(208, 106, 61, 0.22)',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(208, 106, 61, 0.18)',
   },
-  brandPill: {
-    alignSelf: 'flex-start',
+  brandBadge: {
+    alignSelf: 'stretch',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.11)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
-  brandPillText: {
-    color: '#f7fbfa',
+  brandBadgeLogo: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+  },
+  brandBadgeText: {
+    color: '#eef8f5',
     fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.4,
   },
-  heroCopy: {
-    marginTop: 18,
-    gap: 8,
+  logoWrap: {
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  logoWrapCompact: {
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  logoPlate: {
+    width: 86,
+    height: 86,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f5ee',
+    shadowColor: '#041d1a',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  logoImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+  },
+  logoImageCompact: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
   },
   heroTitle: {
     color: '#ffffff',
-    fontSize: 31,
+    fontSize: 30,
     fontWeight: '800',
-    lineHeight: 38,
+    textAlign: 'center',
+    lineHeight: 36,
+  },
+  heroTitleCompact: {
+    fontSize: 26,
+    lineHeight: 32,
   },
   heroSubtitle: {
-    color: 'rgba(240, 248, 246, 0.82)',
-    fontSize: 15,
-    lineHeight: 24,
+    marginTop: 8,
+    maxWidth: 300,
+    color: 'rgba(235, 246, 243, 0.84)',
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
   },
-  heroHighlights: {
-    marginTop: 20,
-    gap: 10,
-  },
-  highlightPill: {
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(71, 171, 142, 0.16)',
-  },
-  highlightText: {
-    color: '#eaf7f3',
+  heroSubtitleCompact: {
+    marginTop: 6,
     fontSize: 13,
-    fontWeight: '600',
+    lineHeight: 19,
   },
-  highlightPillSecondary: {
-    alignItems: 'center',
-    gap: 8,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(208, 106, 61, 0.14)',
-  },
-  highlightSecondaryText: {
-    color: '#fff1ea',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  card: {
-    marginTop: -32,
+  formCard: {
     borderRadius: 28,
-    backgroundColor: appColors.light.card,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 20,
+    backgroundColor: '#fcfaf5',
     borderWidth: 1,
-    borderColor: '#ece3d8',
-    shadowColor: '#735f47',
+    borderColor: '#e5d8ca',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    shadowColor: '#2b2119',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 5,
+    shadowOpacity: 0.09,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  cardHeader: {
-    gap: 6,
-    marginBottom: 22,
+  formCardCompact: {
+    borderRadius: 24,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
-  cardEyebrow: {
+  formHeader: {
+    gap: 2,
+  },
+  formEyebrow: {
     color: appColors.light.primary,
     fontSize: 12,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
   },
-  cardTitle: {
+  formTitle: {
     color: appColors.light.text,
-    fontSize: 24,
+    fontSize: 25,
     fontWeight: '800',
   },
-  cardDescription: {
-    color: appColors.light.muted,
-    fontSize: 14,
-    lineHeight: 22,
+  formTitleCompact: {
+    fontSize: 22,
   },
   field: {
-    marginBottom: 16,
+    marginTop: 14,
+  },
+  fieldCompact: {
+    marginTop: 10,
   },
   label: {
-    marginBottom: 8,
+    marginBottom: 7,
+    color: appColors.light.text,
     fontSize: 13,
     fontWeight: '700',
-    color: appColors.light.text,
   },
   inputShell: {
+    minHeight: 58,
     alignItems: 'center',
     gap: 10,
-    minHeight: 58,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#ddd0c0',
-    backgroundColor: '#fbf7f2',
+    borderColor: appColors.light.border,
+    backgroundColor: '#f8f2eb',
     paddingHorizontal: 14,
+  },
+  inputShellCompact: {
+    minHeight: 52,
+    borderRadius: 16,
+    paddingHorizontal: 12,
   },
   inputShellError: {
     borderColor: '#dc2626',
@@ -457,68 +503,75 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: appColors.light.text,
   },
+  inputCompact: {
+    minHeight: 50,
+    fontSize: 14,
+  },
   visibilityButton: {
     alignItems: 'center',
     gap: 4,
     flexShrink: 0,
   },
+  visibilityButtonCompact: {
+    gap: 2,
+  },
   visibilityButtonText: {
     color: appColors.light.muted,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   fieldError: {
     marginTop: 6,
-    fontSize: 12,
     color: '#b91c1c',
+    fontSize: 12,
+    lineHeight: 18,
   },
   errorBanner: {
     alignItems: 'center',
     gap: 8,
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 12,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: '#fff2f2',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   errorBannerText: {
     flex: 1,
-    color: '#b91c1c',
+    color: '#991b1b',
     fontSize: 13,
-    lineHeight: 20,
+    lineHeight: 19,
   },
   button: {
-    marginTop: 8,
+    marginTop: 14,
     borderRadius: 18,
     backgroundColor: appColors.light.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    shadowColor: '#0c6b58',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: appColors.light.primary,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
     elevation: 5,
   },
+  buttonCompact: {
+    marginTop: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
+  },
   buttonDisabled: {
-    opacity: 0.8,
+    opacity: 0.82,
   },
   buttonContent: {
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
   },
-  buttonText: {
+  buttonLabel: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '800',
-  },
-  footerNote: {
-    marginTop: 14,
-    color: appColors.light.muted,
-    fontSize: 12,
-    lineHeight: 20,
   },
 });

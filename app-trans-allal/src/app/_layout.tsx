@@ -10,6 +10,8 @@ import { createNavigationTheme } from '@/theme/navigation-theme';
 import i18n, { initI18n } from '@/lib/i18n';
 import { useAuthStore } from '@/store/auth.store';
 import { appColors } from '@/theme/colors';
+import { locationTracker } from '@/services/location/location-tracker.service';
+import { subscribeToConnectivity } from '@/services/connectivity/connectivity.service';
 
 export default function RootLayout() {
   const colorScheme = useAppColorScheme();
@@ -25,6 +27,18 @@ export default function RootLayout() {
     }
     void bootstrap();
   }, [hydrate]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToConnectivity((online) => {
+      if (online) {
+        void locationTracker.flushPendingLocations();
+      }
+    });
+
+    void locationTracker.flushPendingLocations();
+
+    return unsubscribe;
+  }, []);
 
   if (!i18nReady) {
     return (
