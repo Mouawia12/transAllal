@@ -79,6 +79,11 @@
     "offline": "You are offline",
     "locationPermission": "Location permission required",
     "permissionDenied": "Location permission denied",
+    "permissionDeniedDetail": "The app needs location access set to 'Allow all the time'. Go to Settings > Apps > Trans Allal > Permissions > Location and choose 'Allow all the time'.",
+    "startFailedTitle": "Connection failed",
+    "startFailed": "Could not start session. Check your internet connection and try again.",
+    "stopFailedTitle": "Disconnection failed",
+    "stopFailed": "Could not stop session. Please try again.",
     "startingSession": "Starting session...",
     "stoppingSession": "Stopping session..."
   },

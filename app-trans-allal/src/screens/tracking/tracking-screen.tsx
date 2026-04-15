@@ -86,7 +86,7 @@ export function TrackingScreen() {
       if (!granted) {
         Alert.alert(
           t('tracking.locationPermission'),
-          t('tracking.permissionDenied'),
+          t('tracking.permissionDeniedDetail'),
         );
         return;
       }
@@ -96,8 +96,11 @@ export function TrackingScreen() {
       await AsyncStorage.setItem(SESSION_STARTED_KEY, String(now));
       setSessionStartedAt(now);
       setIsOnline(true);
-    } catch {
-      // On any failure, re-read actual state so UI matches reality
+    } catch (err) {
+      // Show the user why it failed, then re-sync real state
+      const message =
+        err instanceof Error ? err.message : t('tracking.startFailed');
+      Alert.alert(t('tracking.startFailedTitle'), message);
       await syncState();
     } finally {
       setLoading(false);
@@ -112,8 +115,10 @@ export function TrackingScreen() {
       await AsyncStorage.removeItem(SESSION_STARTED_KEY);
       setSessionStartedAt(null);
       setIsOnline(false);
-    } catch {
-      // On any failure, re-read actual state so UI matches reality
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : t('tracking.stopFailed');
+      Alert.alert(t('tracking.stopFailedTitle'), message);
       await syncState();
     } finally {
       setLoading(false);
