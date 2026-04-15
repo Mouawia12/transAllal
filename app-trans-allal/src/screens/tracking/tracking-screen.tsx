@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, AppStateStatus, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/services/api/client';
@@ -20,6 +21,7 @@ function formatElapsed(totalSeconds: number): string {
 
 export function TrackingScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [isOnline, setIsOnline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
@@ -126,7 +128,7 @@ export function TrackingScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top + 8, 20) }]}>
       {/* Status indicator */}
       <View style={styles.statusRow}>
         <View style={[styles.dot, isOnline ? styles.dotOnline : styles.dotOffline]} />
