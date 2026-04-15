@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { Driver } from '../drivers/driver.entity';
 import { Truck } from '../trucks/truck.entity';
 import { DriverLocation } from '../../telemetry/tracking/driver-location.entity';
@@ -9,7 +10,10 @@ import { TripsService } from './trips.service';
 import { Trip } from './trip.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Trip, DriverLocation, Driver, Truck])],
+  imports: [
+    ConfigModule,
+    TypeOrmModule.forFeature([Trip, DriverLocation, Driver, Truck]),
+  ],
   controllers: [TripsController],
   providers: [TripsService, PushNotificationService],
   exports: [TripsService],

@@ -96,8 +96,11 @@ export interface LiveDriver {
   lng: number;
   speedKmh: number | null;
   heading: number | null;
+  accuracyM: number | null;
+  batteryLevel: number | null;
   isOnline: boolean;
   lastSeenAt: string | null;
+  sessionStartedAt: string | null;
   tripId: string | null;
 }
 

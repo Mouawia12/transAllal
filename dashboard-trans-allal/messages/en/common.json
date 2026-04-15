@@ -459,7 +459,9 @@
     "online": "Online",
     "offline": "Offline",
     "in_trip": "In Trip",
-    "standalone": "Standalone Tracking"
+    "standalone": "Standalone Tracking",
+    "battery": "Battery",
+    "session_started": "Session Started"
   },
   "settings_page": {
     "eyebrow": "Workspace Preferences",

@@ -158,23 +158,50 @@ export class TrackingService {
   }
 
   private buildLatestLocationsQuery(companyId: string, onlyOnline: boolean) {
-    const qb = this.locationRepo
-      .createQueryBuilder('location')
-      .innerJoin('location.driver', 'driver')
-      .select('location.driverId', 'driverId')
+    // Start from Driver so ALL active drivers appear, even those without a
+    // location record yet. Location data is LEFT JOINed on the latest row.
+    const qb = this.driverRepo
+      .createQueryBuilder('driver')
+      .leftJoin(
+        (subQuery) =>
+          subQuery
+            .select('dl.driverId', 'driverId')
+            .addSelect('dl.tripId', 'tripId')
+            .addSelect('dl.lat', 'lat')
+            .addSelect('dl.lng', 'lng')
+            .addSelect('dl.speedKmh', 'speedKmh')
+            .addSelect('dl.heading', 'heading')
+            .addSelect('dl.accuracyM', 'accuracyM')
+            .addSelect('dl.batteryLevel', 'batteryLevel')
+            .addSelect('dl.recordedAt', 'recordedAt')
+            .from(DriverLocation, 'dl')
+            .innerJoin(
+              (inner) =>
+                inner
+                  .select('innerDl.driverId', 'driverId')
+                  .addSelect('MAX(innerDl.recordedAt)', 'maxAt')
+                  .from(DriverLocation, 'innerDl')
+                  .groupBy('innerDl.driverId'),
+              'latest',
+              'latest.driverId = dl.driverId AND dl.recordedAt = latest.maxAt',
+            ),
+        'location',
+        'location.driverId = driver.id',
+      )
+      .select('driver.id', 'driverId')
+      .addSelect('driver.firstName', 'firstName')
+      .addSelect('driver.lastName', 'lastName')
+      .addSelect('driver.isOnline', 'isOnline')
+      .addSelect('driver.lastSeenAt', 'lastSeenAt')
+      .addSelect('driver.sessionStartedAt', 'sessionStartedAt')
+      .addSelect('driver.batteryLevel', 'batteryLevel')
       .addSelect('location.tripId', 'tripId')
       .addSelect('location.lat', 'lat')
       .addSelect('location.lng', 'lng')
       .addSelect('location.speedKmh', 'speedKmh')
       .addSelect('location.heading', 'heading')
       .addSelect('location.accuracyM', 'accuracyM')
-      .addSelect('location.batteryLevel', 'batteryLevel')
       .addSelect('location.recordedAt', 'recordedAt')
-      .addSelect('driver.firstName', 'firstName')
-      .addSelect('driver.lastName', 'lastName')
-      .addSelect('driver.isOnline', 'isOnline')
-      .addSelect('driver.lastSeenAt', 'lastSeenAt')
-      .addSelect('driver.sessionStartedAt', 'sessionStartedAt')
       .where('driver.companyId = :companyId', { companyId })
       .andWhere('driver.isActive = true');
 
@@ -182,17 +209,6 @@ export class TrackingService {
       qb.andWhere('driver.isOnline = true');
     }
 
-    qb.andWhere((subQuery) => {
-      const latestRecordedAt = subQuery
-        .subQuery()
-        .select('MAX(innerLocation.recordedAt)')
-        .from(DriverLocation, 'innerLocation')
-        .where('innerLocation.driverId = location.driverId')
-        .getQuery();
-
-      return `location.recordedAt = ${latestRecordedAt}`;
-    });
-
-    return qb.orderBy('location.recordedAt', 'DESC');
+    return qb.orderBy('driver.lastSeenAt', 'DESC');
   }
 }

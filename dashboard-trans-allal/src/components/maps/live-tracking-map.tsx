@@ -137,6 +137,11 @@ export function LiveTrackingMap({
                 <p className="text-xs text-slate-600">
                   السرعة: {formatSpeed(driver.speedKmh)}
                 </p>
+                {driver.batteryLevel != null && (
+                  <p className="text-xs text-slate-600">
+                    البطارية: {driver.batteryLevel}%
+                  </p>
+                )}
               </div>
             </Popup>
           </CircleMarker>

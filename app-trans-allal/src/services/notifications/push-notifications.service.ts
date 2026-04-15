@@ -1,5 +1,4 @@
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { apiClient } from '@/services/api/client';
 
@@ -30,15 +29,8 @@ export async function registerPushToken(): Promise<void> {
     const granted = await requestPermission();
     if (!granted) return;
 
-    // Expo SDK 50+ requires projectId for standalone builds
-    const projectId =
-      (Constants.expoConfig?.extra?.eas?.projectId as string | undefined) ??
-      (Constants.easConfig?.projectId as string | undefined);
-
-    const { data: token } = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
-
+    // Use native FCM device token (works without Expo account)
+    const { data: token } = await Notifications.getDevicePushTokenAsync();
     if (!token) return;
 
     await apiClient('/drivers/me/push-token', {

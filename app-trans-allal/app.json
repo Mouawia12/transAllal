@@ -65,7 +65,10 @@
       "reactCompiler": true
     },
     "extra": {
-      "projectRole": "driver-app"
+      "projectRole": "driver-app",
+      "eas": {
+        "projectId": "PROJECT_ID"
+      }
     }
   }
 }

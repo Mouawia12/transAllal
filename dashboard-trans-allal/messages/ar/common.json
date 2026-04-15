@@ -459,7 +459,9 @@
     "online": "متصل",
     "offline": "غير متصل",
     "in_trip": "في رحلة",
-    "standalone": "تتبع مستقل"
+    "standalone": "تتبع مستقل",
+    "battery": "البطارية",
+    "session_started": "بداية الجلسة"
   },
   "settings_page": {
     "eyebrow": "تفضيلات التشغيل",

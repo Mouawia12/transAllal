@@ -75,18 +75,24 @@ function normalizeNullableNumber(value: number | string | null | undefined) {
 
 function normalizeLiveDriver(driver: LiveDriver): LiveDriver {
   const nextDriver = driver as LiveDriver & {
-    lat: number | string;
-    lng: number | string;
+    lat: number | string | null;
+    lng: number | string | null;
     speedKmh: number | string | null;
     heading: number | string | null;
+    accuracyM: number | string | null;
+    batteryLevel: number | string | null;
+    sessionStartedAt: string | null;
   };
 
   return {
     ...driver,
-    lat: Number(nextDriver.lat),
-    lng: Number(nextDriver.lng),
+    lat: nextDriver.lat != null ? Number(nextDriver.lat) : 0,
+    lng: nextDriver.lng != null ? Number(nextDriver.lng) : 0,
     speedKmh: normalizeNullableNumber(nextDriver.speedKmh),
     heading: normalizeNullableNumber(nextDriver.heading),
+    accuracyM: normalizeNullableNumber(nextDriver.accuracyM),
+    batteryLevel: normalizeNullableNumber(nextDriver.batteryLevel),
+    sessionStartedAt: nextDriver.sessionStartedAt ?? null,
   };
 }
 
@@ -194,13 +200,14 @@ export default function TrackingPage() {
   const [liveMap, setLiveMap] = useState<Record<string, LiveDriver>>({});
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
 
-  const { data: fleetData, isLoading } = useQuery({
+  const { data: fleetData, isLoading, refetch: refetchFleet } = useQuery({
     queryKey: ['tracking', 'fleet', companyId],
     queryFn: () =>
       apiClient.get<ApiResponse<LiveDriver[]>>(ENDPOINTS.TRACKING_FLEET, {
         companyId,
       }),
     enabled: !!companyId,
+    refetchInterval: 30_000, // fallback refresh every 30s
     select: (response) => ({
       ...response,
       data: response.data.map(normalizeLiveDriver),
@@ -275,11 +282,15 @@ export default function TrackingPage() {
       lng: number;
       speedKmh: number | null;
       heading: number | null;
+      batteryLevel: number | null;
       recordedAt: string;
     }) => {
       setLiveMap((current) => {
         const previous = current[update.driverId];
+
+        // Driver not yet in map (came online after initial fetch) — refetch fleet
         if (!previous) {
+          void refetchFleet();
           return current;
         }
 
@@ -287,12 +298,12 @@ export default function TrackingPage() {
           ...current,
           [update.driverId]: {
             ...previous,
-            driverId: update.driverId,
             tripId: update.tripId,
             lat: Number(update.lat),
             lng: Number(update.lng),
             speedKmh: normalizeNullableNumber(update.speedKmh),
             heading: normalizeNullableNumber(update.heading),
+            batteryLevel: update.batteryLevel ?? previous.batteryLevel,
             isOnline: true,
             lastSeenAt: update.recordedAt,
           },
@@ -304,10 +315,14 @@ export default function TrackingPage() {
       driverId: string;
       isOnline: boolean;
       lastSeenAt: string | null;
+      sessionStartedAt: string | null;
     }) => {
       setLiveMap((current) => {
         const previous = current[event.driverId];
+
+        // Driver not in map — refetch to get their full profile
         if (!previous) {
+          void refetchFleet();
           return current;
         }
 
@@ -317,13 +332,12 @@ export default function TrackingPage() {
             ...previous,
             isOnline: event.isOnline,
             lastSeenAt: event.lastSeenAt,
+            sessionStartedAt: event.sessionStartedAt,
           },
         };
       });
     };
 
-    // WS connection lifecycle is owned by Providers/DashboardShell.
-    // Here we only register/unregister event handlers.
     realtimeClient.onDriverLocation(handleLocation);
     realtimeClient.onOnlineChanged(handleOnlineChanged);
 
@@ -331,7 +345,7 @@ export default function TrackingPage() {
       realtimeClient.offDriverLocation(handleLocation);
       realtimeClient.offOnlineChanged(handleOnlineChanged);
     };
-  }, [companyId]);
+  }, [companyId, refetchFleet]);
 
   const allDrivers = useMemo(() => {
     const baseDrivers = Object.values(liveMap);
@@ -688,7 +702,7 @@ export default function TrackingPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ManagementDetailTile
                     label={t('tracking.coordinates')}
-                    value={`${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}`}
+                    value={selected.lat !== 0 || selected.lng !== 0 ? `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}` : '—'}
                   />
                   <ManagementDetailTile
                     label={t('speed')}
@@ -702,6 +716,18 @@ export default function TrackingPage() {
                     label={t('status')}
                     value={getDriverActivityLabel(t, selected)}
                   />
+                  {selected.batteryLevel != null && (
+                    <ManagementDetailTile
+                      label={t('tracking.battery')}
+                      value={`${selected.batteryLevel}%`}
+                    />
+                  )}
+                  {selected.sessionStartedAt && (
+                    <ManagementDetailTile
+                      label={t('tracking.session_started')}
+                      value={formatDateTime(selected.sessionStartedAt)}
+                    />
+                  )}
                 </div>
               </div>
             )}
