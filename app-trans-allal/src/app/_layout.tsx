@@ -13,6 +13,7 @@ import { appColors } from '@/theme/colors';
 import { locationTracker } from '@/services/location/location-tracker.service';
 import { subscribeToConnectivity } from '@/services/connectivity/connectivity.service';
 import { realtimeClient } from '@/services/api/realtime-client';
+import { registerPushToken } from '@/services/notifications/push-notifications.service';
 
 export default function RootLayout() {
   const colorScheme = useAppColorScheme();
@@ -41,6 +42,7 @@ export default function RootLayout() {
     if (driverId) {
       realtimeClient.subscribeToDriver(driverId);
     }
+    void registerPushToken();
   }, [accessToken, driverId]);
 
   // Flush offline location queue when connectivity is restored

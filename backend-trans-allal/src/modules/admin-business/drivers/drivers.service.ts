@@ -131,6 +131,10 @@ export class DriversService {
     return this.findOne(id, companyId);
   }
 
+  async updatePushToken(driverId: string, token: string | null): Promise<void> {
+    await this.repo.update(driverId, { pushToken: token });
+  }
+
   async softDelete(id: string, companyId?: string): Promise<void> {
     const driver = await this.findOne(id, companyId);
     await this.repo.update(id, { isActive: false });

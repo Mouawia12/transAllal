@@ -9,7 +9,10 @@ import {
   Post,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
+import { IsOptional, IsString } from 'class-validator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { Role } from '../../../common/enums/role.enum';
@@ -69,6 +72,17 @@ export class DriversController {
   @Roles(Role.DRIVER)
   updateMe(@CurrentUser() user: RequestContext, @Body() dto: UpdateDriverDto) {
     return this.service.update(resolveDriverId(user), dto);
+  }
+
+  @Patch('me/push-token')
+  @UseGuards(RolesGuard)
+  @Roles(Role.DRIVER)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  updatePushToken(
+    @CurrentUser() user: RequestContext,
+    @Body() body: { token: string | null },
+  ) {
+    return this.service.updatePushToken(resolveDriverId(user), body.token ?? null);
   }
 
   @Patch(':id')

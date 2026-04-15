@@ -45,6 +45,9 @@ export class Driver {
   @Column({ name: 'license_expiry', type: 'date' })
   licenseExpiry: string;
 
+  @Column({ name: 'push_token', type: 'text', nullable: true })
+  pushToken: string | null;
+
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 

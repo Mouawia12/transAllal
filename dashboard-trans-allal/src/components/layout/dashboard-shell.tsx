@@ -30,6 +30,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }, [isSidebarOpen]);
 
+  // Request browser notification permission once on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
+  }, []);
+
   // Subscribe to company room and keep drivers list in sync with real-time events
   useEffect(() => {
     if (!companyId) return;
@@ -42,6 +49,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         { queryKey: ['drivers', companyId] },
         (old) => {
           if (!old) return old;
+
+          // Find driver name for the notification
+          const driver = old.data.find((d) => d.id === event.driverId);
+          const driverName = driver
+            ? `${driver.firstName} ${driver.lastName}`.trim()
+            : 'سائق';
+
+          // Show browser notification if permission granted
+          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(
+              event.isOnline ? 'سائق متصل' : 'سائق غير متصل',
+              {
+                body: event.isOnline
+                  ? `${driverName} بدأ البث الآن`
+                  : `${driverName} قطع الاتصال`,
+                icon: '/favicon.ico',
+                tag: `driver-${event.driverId}`,
+              },
+            );
+          }
+
           return {
             ...old,
             data: old.data.map((d) =>

@@ -11,6 +11,7 @@ import { paginatedResponse } from '../../../common/interfaces/api-response.inter
 import { Driver } from '../drivers/driver.entity';
 import { Truck } from '../trucks/truck.entity';
 import { DriverLocation } from '../../telemetry/tracking/driver-location.entity';
+import { PushNotificationService } from '../../notifications/push-notification.service';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { QueryTripDto } from './dto/query-trip.dto';
 import { UpdateTripDto } from './dto/update-trip.dto';
@@ -24,6 +25,7 @@ export class TripsService {
     private readonly locationRepo: Repository<DriverLocation>,
     @InjectRepository(Driver) private readonly driverRepo: Repository<Driver>,
     @InjectRepository(Truck) private readonly truckRepo: Repository<Truck>,
+    private readonly pushNotification: PushNotificationService,
   ) {}
 
   async findAll(query: QueryTripDto) {
@@ -75,6 +77,7 @@ export class TripsService {
   }
 
   async create(dto: CreateTripDto): Promise<Trip> {
+    let assignedDriver: Driver | null = null;
     if (dto.driverId) {
       const driver = await this.driverRepo.findOne({
         where: { id: dto.driverId, companyId: dto.companyId },
@@ -84,6 +87,7 @@ export class TripsService {
           'Selected driver does not belong to the target company',
         );
       }
+      assignedDriver = driver;
     }
 
     if (dto.truckId) {
@@ -97,9 +101,18 @@ export class TripsService {
       }
     }
 
-    return this.repo.save(
+    const trip = await this.repo.save(
       this.repo.create({ ...dto, status: TripStatus.PENDING }),
     );
+
+    if (assignedDriver?.pushToken) {
+      void this.pushNotification.sendTripAssigned(assignedDriver.pushToken, {
+        origin: dto.origin,
+        destination: dto.destination,
+      });
+    }
+
+    return trip;
   }
 
   async update(
