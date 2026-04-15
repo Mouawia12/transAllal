@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { tokenStorage } from '@/services/storage/token-storage';
-import { apiClient } from '@/services/api/client';
+import { apiClient, ApiError } from '@/services/api/client';
 import type { CurrentUser } from '@/types/api';
 
 interface AuthUserPayload {
@@ -74,9 +74,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const data = await apiClient<AuthMePayload>('/auth/me', {}, { token });
       set({ user: normalizeCurrentUser(data), accessToken: token, isHydrated: true });
-    } catch {
-      await tokenStorage.clearAll();
-      set({ user: null, accessToken: null, isHydrated: true });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        // Token is definitively invalid — clear and force re-login
+        await tokenStorage.clearAll();
+        set({ user: null, accessToken: null, isHydrated: true });
+      } else {
+        // Network/timeout error — keep token so the user isn't logged out
+        // The app will proceed and retry on the next API call
+        set({ user: null, accessToken: token, isHydrated: true });
+      }
     }
   },
 

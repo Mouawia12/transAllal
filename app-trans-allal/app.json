@@ -9,9 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.souftech.transallal.driver",
+      "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
+      "package": "com.souftech.transallal.driver",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#083D35",
         "foregroundImage": "./src/assets/images/branding/brand-adaptive-icon.png"

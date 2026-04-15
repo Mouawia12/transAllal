@@ -1,14 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { cn } from '../../lib/utils/cn';
+import { realtimeClient, type OnlineChangedEvent } from '../../lib/api/realtime-client';
+import { useCompanyScope } from '../../lib/company/use-company-scope';
+import type { ApiResponse, Driver } from '../../types/shared';
 
 const SIDEBAR_STORAGE_KEY = 'trans-allal:dashboard-sidebar-open';
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { companyId } = useCompanyScope();
+  const qc = useQueryClient();
 
   useEffect(() => {
     const storedPreference = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
@@ -23,6 +29,42 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       isSidebarOpen ? '1' : '0',
     );
   }, [isSidebarOpen]);
+
+  // Subscribe to company room and keep drivers list in sync with real-time events
+  useEffect(() => {
+    if (!companyId) return;
+
+    realtimeClient.subscribeToCompany(companyId);
+
+    const handleOnlineChanged = (event: OnlineChangedEvent) => {
+      // Update every cached page of the drivers query without a round-trip
+      qc.setQueriesData<ApiResponse<Driver[]>>(
+        { queryKey: ['drivers', companyId] },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            data: old.data.map((d) =>
+              d.id === event.driverId
+                ? {
+                    ...d,
+                    isOnline: event.isOnline,
+                    lastSeenAt: event.lastSeenAt,
+                    sessionStartedAt: event.sessionStartedAt,
+                  }
+                : d,
+            ),
+          };
+        },
+      );
+    };
+
+    realtimeClient.onOnlineChanged(handleOnlineChanged);
+
+    return () => {
+      realtimeClient.offOnlineChanged(handleOnlineChanged);
+    };
+  }, [companyId, qc]);
 
   return (
     <div className="relative min-h-screen overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4">

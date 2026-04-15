@@ -12,12 +12,15 @@ import { useAuthStore } from '@/store/auth.store';
 import { appColors } from '@/theme/colors';
 import { locationTracker } from '@/services/location/location-tracker.service';
 import { subscribeToConnectivity } from '@/services/connectivity/connectivity.service';
+import { realtimeClient } from '@/services/api/realtime-client';
 
 export default function RootLayout() {
   const colorScheme = useAppColorScheme();
   const navigationTheme = createNavigationTheme(colorScheme);
   const [i18nReady, setI18nReady] = useState(false);
   const hydrate = useAuthStore((s) => s.hydrate);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const driverId = useAuthStore((s) => s.user?.driverId ?? null);
 
   useEffect(() => {
     async function bootstrap() {
@@ -28,6 +31,19 @@ export default function RootLayout() {
     void bootstrap();
   }, [hydrate]);
 
+  // Manage WebSocket lifecycle: connect when authenticated, disconnect on logout
+  useEffect(() => {
+    if (!accessToken) {
+      realtimeClient.disconnect();
+      return;
+    }
+    realtimeClient.connect(accessToken);
+    if (driverId) {
+      realtimeClient.subscribeToDriver(driverId);
+    }
+  }, [accessToken, driverId]);
+
+  // Flush offline location queue when connectivity is restored
   useEffect(() => {
     const unsubscribe = subscribeToConnectivity((online) => {
       if (online) {

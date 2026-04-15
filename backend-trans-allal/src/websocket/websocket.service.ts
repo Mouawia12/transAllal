@@ -41,6 +41,7 @@ export class WebsocketService {
     companyId: string,
     isOnline: boolean,
     lastSeenAt: Date | null,
+    sessionStartedAt: Date | null,
   ): void {
     if (!this.server) {
       return;
@@ -52,6 +53,7 @@ export class WebsocketService {
         driverId,
         isOnline,
         lastSeenAt,
+        sessionStartedAt,
       });
   }
 
@@ -64,6 +66,7 @@ export class WebsocketService {
     speedKmh: number | null;
     heading: number | null;
     accuracyM: number | null;
+    batteryLevel: number | null;
     recordedAt: Date;
   }): void {
     if (!this.server) {
@@ -78,6 +81,7 @@ export class WebsocketService {
       speedKmh: location.speedKmh,
       heading: location.heading,
       accuracyM: location.accuracyM,
+      batteryLevel: location.batteryLevel,
       recordedAt: location.recordedAt,
     };
 

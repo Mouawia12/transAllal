@@ -55,6 +55,15 @@ export class DriverLocation {
   accuracyM: number | null;
 
   @Column({
+    name: 'battery_level',
+    type: 'numeric',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
+  batteryLevel: number | null;
+
+  @Column({
     name: 'recorded_at',
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP',

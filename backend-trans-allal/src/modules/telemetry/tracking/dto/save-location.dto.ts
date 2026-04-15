@@ -7,4 +7,5 @@ export class SaveLocationDto {
   @IsOptional() @IsNumber() @Min(0) @Max(360) heading?: number;
   @IsOptional() @IsNumber() accuracyM?: number;
   @IsOptional() @IsUUID() tripId?: string;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) batteryLevel?: number;
 }

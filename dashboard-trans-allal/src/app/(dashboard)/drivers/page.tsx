@@ -72,6 +72,29 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatSessionDuration(sessionStartedAt: string | null): string {
+  if (!sessionStartedAt) return '—';
+  const totalSeconds = Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000);
+  if (totalSeconds < 0) return '—';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return '< 1m';
+}
+
+function batteryTone(level: number | null) {
+  if (level === null) return 'border-slate-200 bg-slate-100 text-slate-500';
+  if (level > 50) return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (level > 20) return 'border-amber-200 bg-amber-50 text-amber-700';
+  return 'border-red-200 bg-red-50 text-red-700';
+}
+
+function batteryLabel(level: number | null): string {
+  if (level === null) return '—';
+  return `${Math.round(level)}%`;
+}
+
 function driverStatusTone(isActive: boolean) {
   return isActive
     ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -199,6 +222,13 @@ export default function DriversPage() {
   const [formErrors, setFormErrors] = useState<DriverFormErrors>({});
   const [feedback, setFeedback] = useState<DriverFeedback | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Tick every minute so session durations re-render without a full refetch
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const canManageDrivers =
     user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
@@ -758,6 +788,26 @@ export default function DriversPage() {
                       {formatDate(driver.licenseExpiry)}
                     </p>
                   </div>
+                  {driver.isOnline ? (
+                    <>
+                      <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                          {t('drivers_page.battery')}
+                        </p>
+                        <p className={`mt-1 text-sm font-semibold ${batteryTone(driver.batteryLevel).split(' ').find(c => c.startsWith('text-')) ?? 'text-[var(--color-ink)]'}`}>
+                          {batteryLabel(driver.batteryLevel)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-[var(--color-border)] bg-white/84 px-3 py-2.5">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-muted)]">
+                          {t('drivers_page.session_duration')}
+                        </p>
+                        <p className="mt-1 text-sm text-[var(--color-ink)]">
+                          {formatSessionDuration(driver.sessionStartedAt)}
+                        </p>
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </ManagementMobileCard>
             ))}
@@ -777,6 +827,8 @@ export default function DriversPage() {
                   t('license_expiry'),
                   t('status'),
                   t('go_online'),
+                  t('drivers_page.battery'),
+                  t('drivers_page.session_duration'),
                   ...(showActions ? [t('actions')] : []),
                 ].map((heading) => (
                   <th
@@ -792,14 +844,14 @@ export default function DriversPage() {
             <tbody className="divide-y divide-[rgba(15,23,42,0.08)]">
               {isLoading ? (
                 <ManagementTableSkeleton
-                  colSpan={showActions ? 7 : 6}
+                  colSpan={showActions ? 9 : 8}
                   rows={4}
                 />
               ) : null}
 
               {!isLoading && drivers.length === 0 ? (
                 <ManagementTableState
-                  colSpan={showActions ? 7 : 6}
+                  colSpan={showActions ? 9 : 8}
                   title={t('ui_state.empty_title')}
                   description={t('ui_state.empty_description')}
                 />
@@ -844,6 +896,15 @@ export default function DriversPage() {
                       }
                       toneClassName={connectionTone(driver.isOnline)}
                     />
+                  </td>
+                  <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
+                    <ToneBadge
+                      label={batteryLabel(driver.batteryLevel)}
+                      toneClassName={batteryTone(driver.batteryLevel)}
+                    />
+                  </td>
+                  <td className={`${MANAGEMENT_TABLE_CELL_CLASSNAME} text-[var(--color-muted)]`}>
+                    {driver.isOnline ? formatSessionDuration(driver.sessionStartedAt) : '—'}
                   </td>
                   {showActions ? (
                     <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>

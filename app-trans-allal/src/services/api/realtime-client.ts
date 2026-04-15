@@ -12,32 +12,52 @@ const WsEvents = {
 } as const;
 
 let socket: Socket | null = null;
+// Remembers the last driver subscribed so we can re-subscribe after reconnect
+let trackedDriverId: string | null = null;
 
 export const realtimeClient = {
   connect(token: string): void {
     if (socket?.connected) return;
 
+    if (socket) {
+      socket.removeAllListeners();
+      socket.disconnect();
+      socket = null;
+    }
+
     socket = io(`${apiConfig.websocketUrl}/tracking`, {
       auth: { token },
       transports: ['websocket'],
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30_000,
+      randomizationFactor: 0.5,
+      timeout: 20_000,
     });
 
     socket.on('connect', () => {
       console.log('[WS] Connected');
+      // Re-subscribe to driver room after every (re)connect
+      if (trackedDriverId) {
+        socket?.emit(WsEvents.DRIVER_SUBSCRIBE, { driverId: trackedDriverId });
+      }
     });
+
     socket.on('disconnect', (reason) => {
       console.log('[WS] Disconnected:', reason);
     });
+
     socket.on('connect_error', (err) => {
-      console.error('[WS] Connection error:', err.message);
+      console.warn('[WS] Connection error:', err.message);
     });
   },
 
   subscribeToDriver(driverId: string): void {
-    socket?.emit(WsEvents.DRIVER_SUBSCRIBE, { driverId });
+    trackedDriverId = driverId;
+    if (socket?.connected) {
+      socket.emit(WsEvents.DRIVER_SUBSCRIBE, { driverId });
+    }
   },
 
   publishLocation(payload: {
@@ -62,6 +82,8 @@ export const realtimeClient = {
   },
 
   disconnect(): void {
+    trackedDriverId = null;
+    socket?.removeAllListeners();
     socket?.disconnect();
     socket = null;
   },

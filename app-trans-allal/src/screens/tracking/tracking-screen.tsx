@@ -1,18 +1,68 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/services/api/client';
 import { locationTracker } from '@/services/location/location-tracker.service';
 import { appColors } from '@/theme/colors';
 
+const SESSION_STARTED_KEY = 'trans-allal:session-started-at';
+
+function formatElapsed(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export function TrackingScreen() {
   const { t } = useTranslation();
   const [isOnline, setIsOnline] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Restore session state on mount
+  useEffect(() => {
+    locationTracker.isTracking().then(async (tracking) => {
+      setIsOnline(tracking);
+      if (tracking) {
+        const stored = await AsyncStorage.getItem(SESSION_STARTED_KEY);
+        if (stored) {
+          const startedAt = Number(stored);
+          setSessionStartedAt(startedAt);
+          setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+        }
+      }
+    });
+  }, []);
+
+  // Tick the elapsed counter while online
+  const startTimer = useCallback((startedAt: number) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+  }, []);
 
   useEffect(() => {
-    locationTracker.isTracking().then(setIsOnline);
-  }, []);
+    if (sessionStartedAt && isOnline) {
+      startTimer(sessionStartedAt);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      setElapsed(0);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [sessionStartedAt, isOnline, startTimer]);
 
   async function handleGoOnline() {
     setLoading(true);
@@ -27,6 +77,9 @@ export function TrackingScreen() {
       }
       await apiClient('/tracking/session/start', { method: 'POST' });
       await locationTracker.start();
+      const now = Date.now();
+      await AsyncStorage.setItem(SESSION_STARTED_KEY, String(now));
+      setSessionStartedAt(now);
       setIsOnline(true);
     } catch {
       // handled silently; user sees no change
@@ -40,6 +93,8 @@ export function TrackingScreen() {
     try {
       await locationTracker.stop();
       await apiClient('/tracking/session/stop', { method: 'POST' });
+      await AsyncStorage.removeItem(SESSION_STARTED_KEY);
+      setSessionStartedAt(null);
       setIsOnline(false);
     } catch {
       // handled silently
@@ -53,9 +108,14 @@ export function TrackingScreen() {
       {/* Status indicator */}
       <View style={styles.statusRow}>
         <View style={[styles.dot, isOnline ? styles.dotOnline : styles.dotOffline]} />
-        <Text style={styles.statusText}>
-          {isOnline ? t('tracking.broadcasting') : t('tracking.offline')}
-        </Text>
+        <View style={styles.statusTextGroup}>
+          <Text style={styles.statusText}>
+            {isOnline ? t('tracking.broadcasting') : t('tracking.offline')}
+          </Text>
+          {isOnline && sessionStartedAt ? (
+            <Text style={styles.elapsedText}>{formatElapsed(elapsed)}</Text>
+          ) : null}
+        </View>
       </View>
 
       {/* Map placeholder */}
@@ -114,12 +174,23 @@ const styles = StyleSheet.create({
   dotOffline: {
     backgroundColor: '#9ca3af',
   },
+  statusTextGroup: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   statusText: {
     fontSize: 14,
     fontWeight: '600',
     color: appColors.light.text,
     textAlign: 'right',
-    flex: 1,
+  },
+  elapsedText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: appColors.light.primary,
+    fontVariant: ['tabular-nums'],
   },
   mapPlaceholder: {
     flex: 1,

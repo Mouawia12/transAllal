@@ -295,7 +295,9 @@
     "license_exists": "Another driver already uses this license number.",
     "conflict_exists": "A driver with the same phone number or license number already exists.",
     "network_error": "The dashboard could not reach the server. Try again.",
-    "unexpected_error": "The driver request failed. Review the data and try again."
+    "unexpected_error": "The driver request failed. Review the data and try again.",
+    "battery": "Battery",
+    "session_duration": "Session Duration"
   },
   "trucks_page": {
     "eyebrow": "Fleet Management",

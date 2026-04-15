@@ -54,6 +54,18 @@ export class Driver {
   @Column({ name: 'last_seen_at', type: 'timestamp', nullable: true })
   lastSeenAt: Date | null;
 
+  @Column({ name: 'session_started_at', type: 'timestamp', nullable: true })
+  sessionStartedAt: Date | null;
+
+  @Column({
+    name: 'battery_level',
+    type: 'numeric',
+    precision: 5,
+    scale: 2,
+    nullable: true,
+  })
+  batteryLevel: number | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

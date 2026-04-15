@@ -31,7 +31,6 @@ import {
 import { apiClient } from '../../../lib/api/client';
 import { ENDPOINTS } from '../../../lib/api/endpoints';
 import { realtimeClient } from '../../../lib/api/realtime-client';
-import { tokenStore } from '../../../lib/auth/token-store';
 import { useCompanyScope } from '../../../lib/company/use-company-scope';
 import { cn } from '../../../lib/utils/cn';
 import type { ApiResponse, LiveDriver } from '../../../types/shared';
@@ -265,8 +264,7 @@ export default function TrackingPage() {
   }, [fleetData]);
 
   useEffect(() => {
-    const token = tokenStore.getAccessToken();
-    if (!token || !companyId) {
+    if (!companyId) {
       return;
     }
 
@@ -324,15 +322,14 @@ export default function TrackingPage() {
       });
     };
 
-    realtimeClient.connect(token);
-    realtimeClient.subscribeToCompany(companyId);
+    // WS connection lifecycle is owned by Providers/DashboardShell.
+    // Here we only register/unregister event handlers.
     realtimeClient.onDriverLocation(handleLocation);
     realtimeClient.onOnlineChanged(handleOnlineChanged);
 
     return () => {
       realtimeClient.offDriverLocation(handleLocation);
       realtimeClient.offOnlineChanged(handleOnlineChanged);
-      realtimeClient.disconnect();
     };
   }, [companyId]);
 

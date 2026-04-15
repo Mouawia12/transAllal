@@ -40,11 +40,17 @@ export class TrackingService {
         speedKmh: dto.speedKmh ?? null,
         heading: dto.heading ?? null,
         accuracyM: dto.accuracyM ?? null,
+        batteryLevel: dto.batteryLevel ?? null,
         recordedAt: new Date(),
       }),
     );
 
-    await this.driverRepo.update(driverId, { lastSeenAt: new Date() });
+    const driverUpdate: Partial<Driver> = { lastSeenAt: new Date() };
+    if (dto.batteryLevel !== undefined) {
+      driverUpdate.batteryLevel = dto.batteryLevel;
+    }
+    await this.driverRepo.update(driverId, driverUpdate);
+
     this.websocketService.emitDriverLocation({
       companyId,
       driverId,
@@ -56,6 +62,8 @@ export class TrackingService {
       heading: location.heading,
       accuracyM:
         location.accuracyM === null ? null : Number(location.accuracyM),
+      batteryLevel:
+        location.batteryLevel === null ? null : Number(location.batteryLevel),
       recordedAt: location.recordedAt,
     });
 
@@ -79,13 +87,18 @@ export class TrackingService {
       throw new NotFoundException(`Driver ${driverId} not found`);
     }
 
-    const lastSeenAt = new Date();
-    await this.driverRepo.update(driverId, { isOnline: true, lastSeenAt });
+    const sessionStartedAt = new Date();
+    await this.driverRepo.update(driverId, {
+      isOnline: true,
+      lastSeenAt: sessionStartedAt,
+      sessionStartedAt,
+    });
     this.websocketService.emitOnlineChanged(
       driverId,
       driver.companyId,
       true,
-      lastSeenAt,
+      sessionStartedAt,
+      sessionStartedAt,
     );
   }
 
@@ -95,12 +108,16 @@ export class TrackingService {
       throw new NotFoundException(`Driver ${driverId} not found`);
     }
 
-    await this.driverRepo.update(driverId, { isOnline: false });
+    await this.driverRepo.update(driverId, {
+      isOnline: false,
+      sessionStartedAt: null,
+    });
     this.websocketService.emitOnlineChanged(
       driverId,
       driver.companyId,
       false,
       driver.lastSeenAt,
+      null,
     );
   }
 
@@ -151,11 +168,13 @@ export class TrackingService {
       .addSelect('location.speedKmh', 'speedKmh')
       .addSelect('location.heading', 'heading')
       .addSelect('location.accuracyM', 'accuracyM')
+      .addSelect('location.batteryLevel', 'batteryLevel')
       .addSelect('location.recordedAt', 'recordedAt')
       .addSelect('driver.firstName', 'firstName')
       .addSelect('driver.lastName', 'lastName')
       .addSelect('driver.isOnline', 'isOnline')
       .addSelect('driver.lastSeenAt', 'lastSeenAt')
+      .addSelect('driver.sessionStartedAt', 'sessionStartedAt')
       .where('driver.companyId = :companyId', { companyId })
       .andWhere('driver.isActive = true');
 

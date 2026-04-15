@@ -9,15 +9,20 @@ import {
   companyScopeStorageKey,
   useCompanyScopeStore,
 } from '../lib/company/company-scope-store';
+import { realtimeClient } from '../lib/api/realtime-client';
 
 const AUTH_SYNC_THROTTLE_MS = 30_000;
 const AUTH_STORAGE_SYNC_DEBOUNCE_MS = 80;
+// Delay before re-validating auth after network restore — lets connection stabilise
+const ONLINE_SYNC_DELAY_MS = 2_000;
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const hydrate = useAuthStore(s => s.hydrate);
+  const user = useAuthStore(s => s.user);
   const hydrateCompanyScope = useCompanyScopeStore((state) => state.hydrate);
   const lastAuthSyncAtRef = useRef(0);
   const authStorageSyncTimeoutRef = useRef<number | null>(null);
+  const onlineSyncTimeoutRef = useRef<number | null>(null);
 
   const syncAuthState = (force = false) => {
     const now = Date.now();
@@ -29,6 +34,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
     lastAuthSyncAtRef.current = now;
     hydrate();
   };
+
+  // Connect / disconnect WS based on auth state
+  useEffect(() => {
+    const token = tokenStore.getAccessToken();
+    if (token && user) {
+      realtimeClient.connect(token);
+    } else if (!user) {
+      realtimeClient.disconnect();
+    }
+  }, [user]);
 
   useEffect(() => {
     syncAuthState(true);
@@ -76,7 +91,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
 
     const handleOnline = () => {
-      syncAuthState(true);
+      // Delay to let the network connection fully stabilise before re-validating
+      if (onlineSyncTimeoutRef.current !== null) {
+        window.clearTimeout(onlineSyncTimeoutRef.current);
+      }
+      onlineSyncTimeoutRef.current = window.setTimeout(() => {
+        syncAuthState(true);
+        onlineSyncTimeoutRef.current = null;
+      }, ONLINE_SYNC_DELAY_MS);
     };
 
     window.addEventListener('storage', handleStorage);
@@ -86,6 +108,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return () => {
       if (authStorageSyncTimeoutRef.current !== null) {
         window.clearTimeout(authStorageSyncTimeoutRef.current);
+      }
+      if (onlineSyncTimeoutRef.current !== null) {
+        window.clearTimeout(onlineSyncTimeoutRef.current);
       }
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('focus', handleWindowFocus);

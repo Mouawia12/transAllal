@@ -38,6 +38,8 @@ export interface Driver {
   isActive: boolean;
   isOnline: boolean;
   lastSeenAt: string | null;
+  sessionStartedAt: string | null;
+  batteryLevel: number | null;
   createdAt: string;
 }
 

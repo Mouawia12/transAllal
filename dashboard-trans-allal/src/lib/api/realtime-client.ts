@@ -16,6 +16,7 @@ type LocationUpdate = {
   lng: number;
   speedKmh: number | null;
   heading: number | null;
+  batteryLevel: number | null;
   recordedAt: string;
 };
 
@@ -28,10 +29,11 @@ type AlertEvent = {
   tripId: string | null;
 };
 
-type OnlineChangedEvent = {
+export type OnlineChangedEvent = {
   driverId: string;
   isOnline: boolean;
   lastSeenAt: string | null;
+  sessionStartedAt: string | null;
 };
 
 class RealtimeClient {
@@ -39,9 +41,22 @@ class RealtimeClient {
 
   connect(token: string): void {
     if (this.socket?.connected) return;
+
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
     this.socket = io(resolveTrackingUrl(WS_URL), {
       auth: { token },
       transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 30_000,
+      randomizationFactor: 0.5,
+      timeout: 20_000,
     });
   }
 
@@ -77,7 +92,12 @@ class RealtimeClient {
     this.socket?.off("driver.online.changed", cb);
   }
 
+  isConnected(): boolean {
+    return this.socket?.connected ?? false;
+  }
+
   disconnect(): void {
+    this.socket?.removeAllListeners();
     this.socket?.disconnect();
     this.socket = null;
   }

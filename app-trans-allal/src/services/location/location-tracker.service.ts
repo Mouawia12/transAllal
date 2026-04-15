@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import * as Battery from 'expo-battery';
 import { Platform } from 'react-native';
 import { apiClient } from '@/services/api/client';
 import { tokenStorage } from '@/services/storage/token-storage';
@@ -88,6 +89,18 @@ function toTrackingPayload(location: Location.LocationObject) {
   };
 }
 
+async function readBatteryLevel(): Promise<number | undefined> {
+  try {
+    const level = await Battery.getBatteryLevelAsync();
+    if (level >= 0 && level <= 1) {
+      return Math.round(level * 100);
+    }
+  } catch {
+    // Battery API not available on this platform
+  }
+  return undefined;
+}
+
 async function publishLocationPayload(
   payload: ReturnType<typeof toTrackingPayload>,
 ): Promise<void> {
@@ -96,6 +109,12 @@ async function publishLocationPayload(
     return;
   }
 
+  const batteryLevel = await readBatteryLevel();
+  const enrichedPayload = {
+    ...payload,
+    ...(batteryLevel !== undefined && { batteryLevel }),
+  };
+
   try {
     const online = await isOnline();
     if (online) {
@@ -103,7 +122,7 @@ async function publishLocationPayload(
         '/tracking/location',
         {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(enrichedPayload),
         },
         { token },
       );
@@ -116,7 +135,7 @@ async function publishLocationPayload(
   await enqueueRequest({
     path: '/tracking/location',
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(enrichedPayload),
   });
 }
 
