@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { apiClient } from '@/services/api/client';
 import { useAuthStore } from '@/store/auth.store';
+import { useTrackingState } from '@/hooks/use-tracking-state';
 import type { DriverProfile } from '@/types/api';
 import { appColors } from '@/theme/colors';
 
@@ -19,6 +20,7 @@ export function ProfileScreen() {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
+  const isTracking = useTrackingState();
 
   useEffect(() => {
     apiClient<DriverProfile>('/drivers/me')
@@ -56,11 +58,11 @@ export function ProfileScreen() {
         <View
           style={[
             styles.statusBadge,
-            profile?.isOnline ? styles.badgeOnline : styles.badgeOffline,
+            isTracking ? styles.badgeOnline : styles.badgeOffline,
           ]}
         >
           <Text style={styles.statusBadgeText}>
-            {profile?.isOnline ? t('home.online') : t('home.offline')}
+            {isTracking ? t('home.online') : t('home.offline')}
           </Text>
         </View>
       </View>

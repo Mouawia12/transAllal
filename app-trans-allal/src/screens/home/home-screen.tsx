@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, RefreshControl, ScrollView, StyleSheet, Text,
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/auth.store';
 import { apiClient } from '@/services/api/client';
+import { useTrackingState } from '@/hooks/use-tracking-state';
 import type { DriverProfile, Trip } from '@/types/api';
 import { appColors } from '@/theme/colors';
 
@@ -30,6 +31,7 @@ export function HomeScreen() {
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const isTracking = useTrackingState();
 
   async function load() {
     try {
@@ -76,9 +78,9 @@ export function HomeScreen() {
           </View>
         </View>
 
-        <View style={[styles.badge, profile?.isOnline ? styles.badgeOnline : styles.badgeOffline]}>
+        <View style={[styles.badge, isTracking ? styles.badgeOnline : styles.badgeOffline]}>
           <Text style={styles.badgeText}>
-            {profile?.isOnline ? t('home.online') : t('home.offline')}
+            {isTracking ? t('home.online') : t('home.offline')}
           </Text>
         </View>
       </View>

@@ -26,7 +26,7 @@ import { ApiError } from '@/services/api/client';
 import { useAuthStore } from '@/store/auth.store';
 import { appColors } from '@/theme/colors';
 
-const SAVED_CREDS_KEY = 'trans-allal:saved-credentials';
+const SAVED_CREDS_KEY = 'trans-allal_saved-credentials';
 
 type SignInFormValues = {
   phone: string;
