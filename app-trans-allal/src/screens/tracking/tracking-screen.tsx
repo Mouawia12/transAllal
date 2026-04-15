@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, AppStateStatus, Pressable, StyleSheet, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '@/services/api/client';
@@ -26,20 +26,35 @@ export function TrackingScreen() {
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Restore session state on mount
-  useEffect(() => {
-    locationTracker.isTracking().then(async (tracking) => {
-      setIsOnline(tracking);
-      if (tracking) {
-        const stored = await AsyncStorage.getItem(SESSION_STARTED_KEY);
-        if (stored) {
-          const startedAt = Number(stored);
-          setSessionStartedAt(startedAt);
-          setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-        }
+  // Sync UI with real tracking state (call on mount + app foreground)
+  const syncState = useCallback(async () => {
+    const tracking = await locationTracker.isTracking();
+    setIsOnline(tracking);
+    if (tracking) {
+      const stored = await AsyncStorage.getItem(SESSION_STARTED_KEY);
+      if (stored) {
+        const startedAt = Number(stored);
+        setSessionStartedAt(startedAt);
+        setElapsed(Math.floor((Date.now() - startedAt) / 1000));
       }
-    });
+    } else {
+      setSessionStartedAt(null);
+      setElapsed(0);
+    }
   }, []);
+
+  useEffect(() => {
+    void syncState();
+  }, [syncState]);
+
+  // Re-sync whenever app returns to foreground
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active') void syncState();
+    };
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub.remove();
+  }, [syncState]);
 
   // Tick the elapsed counter while online
   const startTimer = useCallback((startedAt: number) => {
@@ -82,7 +97,8 @@ export function TrackingScreen() {
       setSessionStartedAt(now);
       setIsOnline(true);
     } catch {
-      // handled silently; user sees no change
+      // On any failure, re-read actual state so UI matches reality
+      await syncState();
     } finally {
       setLoading(false);
     }
@@ -97,7 +113,8 @@ export function TrackingScreen() {
       setSessionStartedAt(null);
       setIsOnline(false);
     } catch {
-      // handled silently
+      // On any failure, re-read actual state so UI matches reality
+      await syncState();
     } finally {
       setLoading(false);
     }

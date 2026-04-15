@@ -1,17 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +25,8 @@ import { z } from 'zod';
 import { ApiError } from '@/services/api/client';
 import { useAuthStore } from '@/store/auth.store';
 import { appColors } from '@/theme/colors';
+
+const SAVED_CREDS_KEY = 'trans-allal:saved-credentials';
 
 type SignInFormValues = {
   phone: string;
@@ -40,6 +45,8 @@ export function SignInScreen() {
   const textAlign = isRTL ? 'right' : 'left';
   const rowDirection = { flexDirection: isRTL ? 'row-reverse' : 'row' } as const;
   const formHeaderAlignment = { alignItems: isRTL ? 'flex-end' : 'flex-start' } as const;
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   const signInSchema = z.object({
     phone: z
@@ -57,6 +64,7 @@ export function SignInScreen() {
     control,
     handleSubmit,
     clearErrors,
+    setValue,
     formState: { errors },
   } = useForm<SignInFormValues>({
     resolver: zodResolver(signInSchema),
@@ -68,6 +76,31 @@ export function SignInScreen() {
 
   const [formError, setFormError] = useState<string | null>(null);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
+  // Auto-fill saved credentials on mount
+  useEffect(() => {
+    SecureStore.getItemAsync(SAVED_CREDS_KEY).then((json) => {
+      if (json) {
+        try {
+          const { phone, password } = JSON.parse(json) as { phone: string; password: string };
+          setValue('phone', phone);
+          setValue('password', password);
+        } catch {
+          // ignore corrupt data
+        }
+      }
+    });
+  }, [setValue]);
+
+  // Track keyboard visibility so we can hide the hero when typing
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   function resolveErrorMessage(error: unknown): string {
     if (error instanceof ApiError) {
@@ -93,6 +126,11 @@ export function SignInScreen() {
     setFormError(null);
     try {
       await login(values.phone.trim(), values.password);
+      // Save credentials so they auto-fill next time
+      await SecureStore.setItemAsync(
+        SAVED_CREDS_KEY,
+        JSON.stringify({ phone: values.phone.trim(), password: values.password }),
+      );
       router.replace('/(driver)/(tabs)');
     } catch (error) {
       const message = resolveErrorMessage(error);
@@ -112,10 +150,17 @@ export function SignInScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         <View style={[styles.screen, isCompactHeight && styles.screenCompact]}>
-          <View style={[styles.heroCard, isCompactHeight && styles.heroCardCompact]}>
+          {!keyboardVisible && <View style={[styles.heroCard, isCompactHeight && styles.heroCardCompact]}>
             <View style={styles.heroGlowPrimary} />
             <View style={styles.heroGlowSecondary} />
 
@@ -139,9 +184,9 @@ export function SignInScreen() {
             <Text style={[styles.heroSubtitle, isCompactHeight && styles.heroSubtitleCompact]}>
               {t('auth.subtitle')}
             </Text>
-          </View>
+          </View>}
 
-          <View style={[styles.formCard, isCompactHeight && styles.formCardCompact]}>
+          <View style={[styles.formCard, isCompactHeight && styles.formCardCompact, keyboardVisible && styles.formCardKeyboard]}>
             <View style={[styles.formHeader, formHeaderAlignment]}>
               <Text style={[styles.formEyebrow, { textAlign }]}>
                 {t('auth.formEyebrow')}
@@ -186,6 +231,8 @@ export function SignInScreen() {
                       textContentType="telephoneNumber"
                       selectionColor={appColors.light.primary}
                       returnKeyType="next"
+                      onSubmitEditing={() => passwordRef.current?.focus()}
+                      blurOnSubmit={false}
                     />
                   </View>
                 )}
@@ -215,6 +262,7 @@ export function SignInScreen() {
                       color={errors.password ? '#b91c1c' : appColors.light.primary}
                     />
                     <TextInput
+                      ref={passwordRef}
                       style={[styles.input, isCompactHeight && styles.inputCompact, { textAlign }]}
                       placeholder={t('auth.passwordPlaceholder')}
                       placeholderTextColor="#8a7f73"
@@ -288,6 +336,7 @@ export function SignInScreen() {
             </Pressable>
           </View>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -301,17 +350,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   screen: {
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 16,
+    paddingBottom: 24,
     justifyContent: 'space-between',
     gap: 14,
   },
   screenCompact: {
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 16,
     gap: 10,
   },
   heroCard: {
@@ -429,6 +481,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     lineHeight: 19,
+  },
+  formCardKeyboard: {
+    marginTop: 8,
   },
   formCard: {
     borderRadius: 28,

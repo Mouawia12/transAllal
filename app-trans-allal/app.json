@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Trans Allal Driver",
+    "name": "Trans Allal",
     "slug": "app-trans-allal",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -40,7 +40,8 @@
             "backgroundColor": "#083D35"
           }
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
