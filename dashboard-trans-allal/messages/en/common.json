@@ -198,7 +198,12 @@
     "redirect_description": "Your session is no longer available, so the dashboard is sending you back to the access screen.",
     "secure_session": "Secure session",
     "hide_sidebar": "Hide sidebar",
-    "show_sidebar": "Show sidebar"
+    "show_sidebar": "Show sidebar",
+    "notifications": "Notifications",
+    "no_notifications": "No notifications",
+    "mark_all_read": "Mark all as read",
+    "driver_online": "Driver online",
+    "driver_offline": "Driver offline"
   },
   "overview": {
     "total_trips": "Total Trips",

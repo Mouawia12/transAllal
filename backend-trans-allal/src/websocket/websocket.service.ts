@@ -57,6 +57,16 @@ export class WebsocketService {
       });
   }
 
+  emitTripAssigned(driverId: string, trip: { tripId: string; origin: string; destination: string }): void {
+    if (!this.server) return;
+    this.server.to(`driver:${driverId}`).emit(WsEvents.TRIP_STATUS_CHANGED, {
+      tripId: trip.tripId,
+      status: 'PENDING',
+      origin: trip.origin,
+      destination: trip.destination,
+    });
+  }
+
   emitDriverLocation(location: {
     companyId: string;
     driverId: string;

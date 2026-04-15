@@ -233,9 +233,11 @@ export const locationTracker = {
         accuracy: Location.Accuracy.High,
         timeInterval: PUBLISH_INTERVAL_MS,
         distanceInterval: 10,
+        pausesUpdatesAutomatically: false,
         foregroundService: {
           notificationTitle: 'Trans Allal',
           notificationBody: 'يتم بث موقعك الآن',
+          killServiceOnDestroy: false,
         },
         showsBackgroundLocationIndicator: true,
       });

@@ -12,6 +12,7 @@ import { Driver } from '../drivers/driver.entity';
 import { Truck } from '../trucks/truck.entity';
 import { DriverLocation } from '../../telemetry/tracking/driver-location.entity';
 import { PushNotificationService } from '../../notifications/push-notification.service';
+import { WebsocketService } from '../../../websocket/websocket.service';
 import { CreateTripDto } from './dto/create-trip.dto';
 import { QueryTripDto } from './dto/query-trip.dto';
 import { UpdateTripDto } from './dto/update-trip.dto';
@@ -26,6 +27,7 @@ export class TripsService {
     @InjectRepository(Driver) private readonly driverRepo: Repository<Driver>,
     @InjectRepository(Truck) private readonly truckRepo: Repository<Truck>,
     private readonly pushNotification: PushNotificationService,
+    private readonly websocketService: WebsocketService,
   ) {}
 
   async findAll(query: QueryTripDto) {
@@ -105,8 +107,17 @@ export class TripsService {
       this.repo.create({ ...dto, status: TripStatus.PENDING }),
     );
 
-    if (assignedDriver?.pushToken) {
-      void this.pushNotification.sendTripAssigned(assignedDriver.pushToken, {
+    if (assignedDriver) {
+      // Push notification (works when app is backgrounded/killed)
+      if (assignedDriver.pushToken) {
+        void this.pushNotification.sendTripAssigned(assignedDriver.pushToken, {
+          origin: dto.origin,
+          destination: dto.destination,
+        });
+      }
+      // WebSocket notification (works when app is in foreground/background with active WS)
+      this.websocketService.emitTripAssigned(assignedDriver.id, {
+        tripId: trip.id,
         origin: dto.origin,
         destination: dto.destination,
       });

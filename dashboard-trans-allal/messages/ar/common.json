@@ -198,7 +198,12 @@
     "redirect_description": "لم تعد الجلسة متاحة حالياً، وسيتم إعادتك إلى شاشة الوصول خلال لحظات.",
     "secure_session": "جلسة محمية",
     "hide_sidebar": "إخفاء القائمة",
-    "show_sidebar": "إظهار القائمة"
+    "show_sidebar": "إظهار القائمة",
+    "notifications": "الإشعارات",
+    "no_notifications": "لا توجد إشعارات",
+    "mark_all_read": "تحديد الكل كمقروء",
+    "driver_online": "سائق متصل",
+    "driver_offline": "سائق غير متصل"
   },
   "overview": {
     "total_trips": "إجمالي الرحلات",

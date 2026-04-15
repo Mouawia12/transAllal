@@ -3,26 +3,31 @@
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import {
   Activity,
+  Bell,
   ChevronsLeft,
   ChevronsRight,
   LogOut,
   ShieldCheck,
   UserCircle2,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LanguageSwitcher } from './language-switcher';
 import { CompanySwitcher } from './company-switcher';
-import { ManagementActionButton } from '../shared/management-ui';
 import { BrandLogo } from '../shared/brand-logo';
 import { cn } from '../../lib/utils/cn';
 import { useAuthStore } from '../../lib/auth/auth-store';
 import { buildSignInHref, getCurrentAppPath } from '../../lib/auth/navigation';
+import type { DriverNotification } from './dashboard-shell';
 
 interface TopbarProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
+  notifications: DriverNotification[];
+  onMarkAllRead: () => void;
 }
 
 function TopbarIconButton({
@@ -44,7 +49,15 @@ function TopbarIconButton({
   );
 }
 
-export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
+function formatRelativeTime(date: Date): string {
+  const diff = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (diff < 60) return 'الآن';
+  if (diff < 3600) return `منذ ${Math.floor(diff / 60)} د`;
+  if (diff < 86400) return `منذ ${Math.floor(diff / 3600)} س`;
+  return `منذ ${Math.floor(diff / 86400)} ي`;
+}
+
+export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAllRead }: TopbarProps) {
   const t = useTranslations();
   const tNav = useTranslations('nav');
   const pathname = usePathname();
@@ -53,7 +66,11 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
   const activeMutations = useIsMutating();
   const { user, logout } = useAuthStore();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
   const isSyncing = activeFetches > 0 || activeMutations > 0;
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const currentSection =
     pathname === '/' ? 'overview' : pathname.split('/')[1] ?? 'overview';
@@ -67,6 +84,18 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
       setIsLoggingOut(false);
     }
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!isNotifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isNotifOpen]);
 
   const firstName = user?.firstName ?? '';
   const lastName = user?.lastName ?? '';
@@ -143,6 +172,89 @@ export function Topbar({ isSidebarOpen, onToggleSidebar }: TopbarProps) {
         <CompanySwitcher compact className="min-w-0 flex-1 xl:w-[260px] xl:flex-none" />
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {/* Notification bell */}
+          <div ref={notifRef} className="relative">
+            <TopbarIconButton
+              onClick={() => {
+                setIsNotifOpen((o) => !o);
+                if (!isNotifOpen && unreadCount > 0) onMarkAllRead();
+              }}
+              className="relative border-[var(--color-border)] bg-white/72 text-[var(--color-muted)] hover:bg-white"
+              aria-label={t('dashboard_shell.notifications')}
+              title={t('dashboard_shell.notifications')}
+            >
+              <Bell size={16} />
+              {unreadCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-brand)] px-1 text-[10px] font-bold leading-none text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </TopbarIconButton>
+
+            {isNotifOpen && (
+              <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-80 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[0_8px_32px_rgba(23,18,14,0.12)]">
+                <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
+                  <span className="text-sm font-semibold text-[var(--color-ink)]">
+                    {t('dashboard_shell.notifications')}
+                  </span>
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onMarkAllRead}
+                      className="text-xs text-[var(--color-brand)] hover:underline"
+                    >
+                      {t('dashboard_shell.mark_all_read')}
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-72 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-sm text-[var(--color-muted)]">
+                      {t('dashboard_shell.no_notifications')}
+                    </p>
+                  ) : (
+                    <ul>
+                      {notifications.map((notif) => (
+                        <li
+                          key={notif.id}
+                          className={cn(
+                            'flex items-start gap-3 border-b border-[var(--color-border)] px-4 py-3 last:border-0',
+                            !notif.read && 'bg-[rgba(12,107,88,0.04)]',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl',
+                              notif.isOnline
+                                ? 'bg-emerald-50 text-emerald-600'
+                                : 'bg-gray-100 text-gray-500',
+                            )}
+                          >
+                            {notif.isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-[var(--color-ink)]">
+                              {notif.driverName}
+                            </p>
+                            <p className="text-xs text-[var(--color-muted)]">
+                              {notif.isOnline
+                                ? t('dashboard_shell.driver_online')
+                                : t('dashboard_shell.driver_offline')}
+                            </p>
+                          </div>
+                          <span className="shrink-0 text-[11px] text-[var(--color-muted)]">
+                            {formatRelativeTime(notif.at)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {user ? (
             <div
               className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[var(--color-border)] bg-white/72 px-2.5 shadow-sm"

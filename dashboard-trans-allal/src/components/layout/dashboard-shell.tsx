@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
@@ -11,8 +11,18 @@ import type { ApiResponse, Driver } from '../../types/shared';
 
 const SIDEBAR_STORAGE_KEY = 'trans-allal:dashboard-sidebar-open';
 
+export type DriverNotification = {
+  id: string;
+  driverId: string;
+  driverName: string;
+  isOnline: boolean;
+  at: Date;
+  read: boolean;
+};
+
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [notifications, setNotifications] = useState<DriverNotification[]>([]);
   const { companyId } = useCompanyScope();
   const qc = useQueryClient();
 
@@ -37,6 +47,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const handleMarkAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
   // Subscribe to company room and keep drivers list in sync with real-time events
   useEffect(() => {
     if (!companyId) return;
@@ -55,6 +69,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           const driverName = driver
             ? `${driver.firstName} ${driver.lastName}`.trim()
             : 'سائق';
+
+          // Add to in-app notification list (keep last 20)
+          const newNotif: DriverNotification = {
+            id: `${event.driverId}-${Date.now()}`,
+            driverId: event.driverId,
+            driverName,
+            isOnline: event.isOnline,
+            at: new Date(),
+            read: false,
+          };
+          setNotifications((prev) => [newNotif, ...prev].slice(0, 20));
 
           // Show browser notification if permission granted
           if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -117,6 +142,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <Topbar
             isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
+            notifications={notifications}
+            onMarkAllRead={handleMarkAllRead}
           />
           <main className="mt-3 min-h-0 flex-1 overflow-y-auto overflow-x-hidden sm:mt-4 sm:pr-1">
             {children}

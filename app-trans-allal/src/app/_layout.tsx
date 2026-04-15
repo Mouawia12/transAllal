@@ -13,7 +13,10 @@ import { appColors } from '@/theme/colors';
 import { locationTracker } from '@/services/location/location-tracker.service';
 import { subscribeToConnectivity } from '@/services/connectivity/connectivity.service';
 import { realtimeClient } from '@/services/api/realtime-client';
-import { registerPushToken } from '@/services/notifications/push-notifications.service';
+import {
+  registerPushToken,
+  showLocalNotification,
+} from '@/services/notifications/push-notifications.service';
 
 export default function RootLayout() {
   const colorScheme = useAppColorScheme();
@@ -44,6 +47,21 @@ export default function RootLayout() {
     }
     void registerPushToken();
   }, [accessToken, driverId]);
+
+  // Show local notification when a new trip is assigned via WebSocket
+  useEffect(() => {
+    if (!accessToken) return;
+    const unsubscribe = realtimeClient.onTripStatusChanged(async (data) => {
+      if (data.status === 'PENDING') {
+        await showLocalNotification(
+          'رحلة جديدة',
+          'تم تعيين رحلة جديدة لك، افتح التطبيق للتفاصيل.',
+          { tripId: data.tripId },
+        );
+      }
+    });
+    return unsubscribe;
+  }, [accessToken]);
 
   // Flush offline location queue when connectivity is restored
   useEffect(() => {
