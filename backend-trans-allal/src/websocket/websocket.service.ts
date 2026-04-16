@@ -42,6 +42,7 @@ export class WebsocketService {
     isOnline: boolean,
     lastSeenAt: Date | null,
     sessionStartedAt: Date | null,
+    driverName: string | null,
   ): void {
     if (!this.server) {
       return;
@@ -51,6 +52,7 @@ export class WebsocketService {
       .to(`company:${companyId}`)
       .emit(WsEvents.DRIVER_ONLINE_CHANGED, {
         driverId,
+        driverName,
         isOnline,
         lastSeenAt,
         sessionStartedAt,

@@ -187,7 +187,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         }
       ).__transallalLastOnlineEvent = event;
 
-      const driverName = resolveDriverName(event.driverId);
+      // Prefer the name the backend embedded in the event (always accurate).
+      // Fall back to the React Query cache only if the backend omits the name
+      // (e.g. when connecting to an older backend version).
+      const driverName =
+        event.driverName?.trim() || resolveDriverName(event.driverId);
 
       pushNotification({
         kind: event.isOnline ? 'driver-online' : 'driver-offline',

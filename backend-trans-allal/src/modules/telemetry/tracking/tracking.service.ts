@@ -99,6 +99,7 @@ export class TrackingService {
       true,
       sessionStartedAt,
       sessionStartedAt,
+      `${driver.firstName} ${driver.lastName}`.trim(),
     );
   }
 
@@ -118,6 +119,7 @@ export class TrackingService {
       false,
       driver.lastSeenAt,
       null,
+      `${driver.firstName} ${driver.lastName}`.trim(),
     );
   }
 

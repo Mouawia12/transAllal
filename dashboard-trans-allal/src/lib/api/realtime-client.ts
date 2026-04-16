@@ -31,6 +31,7 @@ type AlertEvent = {
 
 export type OnlineChangedEvent = {
   driverId: string;
+  driverName: string | null;
   isOnline: boolean;
   lastSeenAt: string | null;
   sessionStartedAt: string | null;
