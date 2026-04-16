@@ -48,6 +48,17 @@ export default function RootLayout() {
     void registerPushToken();
   }, [accessToken, driverId]);
 
+  // If the driver previously enabled tracking, restore the native/background
+  // location task after auth hydration so it keeps broadcasting even when the
+  // app was backgrounded or reopened later.
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
+    void locationTracker.restoreBackgroundTracking();
+  }, [accessToken]);
+
   // Show local notification when a new trip is assigned via WebSocket (online path).
   // The offline/background path is covered by FCM push notifications sent from the
   // backend PushNotificationService — both paths use the same user-facing copy so

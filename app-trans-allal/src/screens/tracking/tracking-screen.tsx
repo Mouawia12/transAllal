@@ -32,6 +32,7 @@ export function TrackingScreen() {
 
   // Sync UI with real tracking state (call on mount + app foreground)
   const syncState = useCallback(async () => {
+    await locationTracker.restoreBackgroundTracking();
     const tracking = await locationTracker.isTracking();
     setIsOnline(tracking);
     if (tracking) {

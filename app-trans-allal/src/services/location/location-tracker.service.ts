@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import * as Battery from 'expo-battery';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient } from '@/services/api/client';
 import { tokenStorage } from '@/services/storage/token-storage';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@/services/connectivity/connectivity.service';
 
 const BACKGROUND_LOCATION_TASK = 'trans-allal-background-location';
+const TRACKING_ENABLED_KEY = 'trans-allal:tracking-enabled';
 
 // Publishing cadence: 5 s on iOS/Android (platform task minimum), 3 m / 5 s on web.
 // This gives near-real-time tracking (~5–10 s end-to-end latency including network).
@@ -29,6 +31,24 @@ let lastTrackingSample:
       recordedAt: number;
     }
   | null = null;
+
+const nativeLocationTaskOptions: Location.LocationTaskOptions = {
+  accuracy: Location.Accuracy.BestForNavigation,
+  timeInterval: PUBLISH_INTERVAL_MS,
+  distanceInterval: 5,
+  deferredUpdatesDistance: 0,
+  deferredUpdatesInterval: PUBLISH_INTERVAL_MS,
+  deferredUpdatesTimeout: PUBLISH_INTERVAL_MS,
+  activityType: Location.ActivityType.AutomotiveNavigation,
+  pausesUpdatesAutomatically: false,
+  foregroundService: {
+    notificationTitle: 'Trans Allal',
+    notificationBody: 'يتم بث موقعك في الخلفية للمراقبة المباشرة',
+    notificationColor: '#083D35',
+    killServiceOnDestroy: false,
+  },
+  showsBackgroundLocationIndicator: true,
+};
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
@@ -107,6 +127,54 @@ async function readBatteryLevel(): Promise<number | undefined> {
   return undefined;
 }
 
+async function setTrackingEnabled(enabled: boolean): Promise<void> {
+  if (enabled) {
+    await AsyncStorage.setItem(TRACKING_ENABLED_KEY, '1');
+    return;
+  }
+
+  await AsyncStorage.removeItem(TRACKING_ENABLED_KEY);
+}
+
+async function isTrackingEnabled(): Promise<boolean> {
+  const value = await AsyncStorage.getItem(TRACKING_ENABLED_KEY);
+  return value === '1';
+}
+
+async function hasStartedNativeTracking(): Promise<boolean> {
+  try {
+    return await Location.hasStartedLocationUpdatesAsync(
+      BACKGROUND_LOCATION_TASK,
+    );
+  } catch {
+    return TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+  }
+}
+
+async function startNativeLocationUpdates(): Promise<void> {
+  const isStarted = await hasStartedNativeTracking();
+  if (isStarted) {
+    return;
+  }
+
+  await Location.startLocationUpdatesAsync(
+    BACKGROUND_LOCATION_TASK,
+    nativeLocationTaskOptions,
+  );
+}
+
+async function publishCurrentLocationSnapshot(): Promise<void> {
+  try {
+    const currentLocation = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.BestForNavigation,
+    });
+    await publishLocationPayload(toTrackingPayload(currentLocation));
+    await flushQueuedLocationPayloads();
+  } catch (error) {
+    console.warn('[LocationTracker] Initial publish error:', error);
+  }
+}
+
 async function publishLocationPayload(
   payload: ReturnType<typeof toTrackingPayload>,
 ): Promise<void> {
@@ -179,26 +247,38 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   const location = locations[locations.length - 1];
   if (!location) return;
 
+  const payload = toTrackingPayload(location);
+
   try {
-    await publishLocationPayload(toTrackingPayload(location));
+    await publishLocationPayload(payload);
   } catch {
     // Silently enqueue on error
     await enqueueRequest({
       path: '/tracking/location',
       method: 'POST',
-      body: JSON.stringify(toTrackingPayload(location)),
+      body: JSON.stringify(payload),
     });
   }
 });
 
 export const locationTracker = {
   async requestPermissions(): Promise<boolean> {
-    const { status: fg } = await Location.requestForegroundPermissionsAsync();
-    if (fg !== 'granted') return false;
+    const foregroundPermission =
+      await Location.getForegroundPermissionsAsync();
+    const fgStatus =
+      foregroundPermission.status === 'granted'
+        ? foregroundPermission.status
+        : (await Location.requestForegroundPermissionsAsync()).status;
+    if (fgStatus !== 'granted') return false;
 
     if (Platform.OS !== 'web') {
-      const { status: bg } = await Location.requestBackgroundPermissionsAsync();
-      if (bg !== 'granted') return false;
+      const backgroundPermission =
+        await Location.getBackgroundPermissionsAsync();
+      const bgStatus =
+        backgroundPermission.status === 'granted'
+          ? backgroundPermission.status
+          : (await Location.requestBackgroundPermissionsAsync()).status;
+      if (bgStatus !== 'granted') return false;
     }
     return true;
   },
@@ -221,58 +301,32 @@ export const locationTracker = {
         );
       }
 
-      try {
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        await publishLocationPayload(toTrackingPayload(currentLocation));
-        await flushQueuedLocationPayloads();
-      } catch (error) {
-        console.warn('[LocationTracker] Initial web publish error:', error);
-      }
+      await setTrackingEnabled(true);
+      await publishCurrentLocationSnapshot();
       return;
     }
 
-    const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
-    if (!isRegistered) {
-      await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: PUBLISH_INTERVAL_MS,
-        distanceInterval: 10,
-        pausesUpdatesAutomatically: false,
-        foregroundService: {
-          notificationTitle: 'Trans Allal',
-          notificationBody: 'يتم بث موقعك الآن',
-          killServiceOnDestroy: false,
-        },
-        showsBackgroundLocationIndicator: true,
-      });
-    }
-
-    try {
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      await publishLocationPayload(toTrackingPayload(currentLocation));
-      await flushQueuedLocationPayloads();
-    } catch (error) {
-      console.warn('[LocationTracker] Initial publish error:', error);
-    }
+    await startNativeLocationUpdates();
+    await setTrackingEnabled(true);
+    await publishCurrentLocationSnapshot();
   },
 
   async stop(): Promise<void> {
     if (Platform.OS === 'web') {
       webLocationSubscription?.remove();
       webLocationSubscription = null;
+      await setTrackingEnabled(false);
       return;
     }
     try {
-      const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+      const isRegistered = await hasStartedNativeTracking();
       if (isRegistered) {
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       }
     } catch (e) {
       console.warn('[LocationTracker] Stop error:', e);
+    } finally {
+      await setTrackingEnabled(false);
     }
   },
 
@@ -284,7 +338,45 @@ export const locationTracker = {
 
   async isTracking(): Promise<boolean> {
     if (Platform.OS === 'web') return webLocationSubscription !== null;
-    return TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+    return hasStartedNativeTracking();
+  },
+
+  async shouldKeepTrackingInBackground(): Promise<boolean> {
+    return isTrackingEnabled();
+  },
+
+  async restoreBackgroundTracking(): Promise<boolean> {
+    if (!(await isTrackingEnabled())) {
+      return false;
+    }
+
+    const token = await tokenStorage.getAccess();
+    if (!token) {
+      return false;
+    }
+
+    const foregroundPermission =
+      await Location.getForegroundPermissionsAsync();
+    if (foregroundPermission.status !== 'granted') {
+      return false;
+    }
+
+    if (Platform.OS === 'web') {
+      if (!webLocationSubscription) {
+        await this.start();
+      }
+      return true;
+    }
+
+    const backgroundPermission =
+      await Location.getBackgroundPermissionsAsync();
+    if (backgroundPermission.status !== 'granted') {
+      return false;
+    }
+
+    await startNativeLocationUpdates();
+    await publishCurrentLocationSnapshot();
+    return true;
   },
 
   async flushPendingLocations(): Promise<void> {

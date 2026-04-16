@@ -11,11 +11,23 @@
     "ios": {
       "bundleIdentifier": "com.souftech.transallal.driver",
       "buildNumber": "1",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
     },
     "android": {
       "package": "com.souftech.transallal.driver",
       "versionCode": 1,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#083D35",
         "foregroundImage": "./src/assets/images/branding/brand-adaptive-icon.png"
@@ -47,6 +59,7 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Trans Allal needs to track your location in the background to broadcast your position to dispatchers.",
           "locationAlwaysPermission": "Trans Allal needs to track your location at all times for live dispatch tracking.",
+          "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }

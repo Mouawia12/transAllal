@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { tokenStorage } from '@/services/storage/token-storage';
 import { apiClient, ApiError } from '@/services/api/client';
+import { locationTracker } from '@/services/location/location-tracker.service';
 import type { CurrentUser } from '@/types/api';
 
 interface AuthUserPayload {
@@ -117,6 +118,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           { token },
         );
       }
+    } catch {}
+    try {
+      await locationTracker.stop();
     } catch {}
     await tokenStorage.clearAll();
     set({ user: null, accessToken: null });
