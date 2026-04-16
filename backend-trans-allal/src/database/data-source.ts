@@ -6,6 +6,7 @@
  * Usage:
  *   npm run migration:run            # apply all pending migrations
  *   npm run migration:revert         # revert the latest migration
+ *   npm run migration:fresh          # drop and recreate the database, then run all migrations
  *   npm run migration:generate -- src/database/migrations/MyChange
  *   npm run migration:show           # list applied / pending migrations
  *
@@ -28,16 +29,17 @@ const databaseUrl =
   process.env.DATABASE_URL ??
   'mysql://mouawia:mouawia@localhost:3306/trans-allal-db';
 
-function resolveDriver(url: string): 'mysql' | 'postgres' {
-  if (url.startsWith('mysql://')) return 'mysql';
-  if (url.startsWith('postgres://') || url.startsWith('postgresql://'))
-    return 'postgres';
+function assertMysqlUrl(url: string): 'mysql' {
+  if (url.startsWith('mysql://')) {
+    return 'mysql';
+  }
+
   throw new Error(
-    'DATABASE_URL must start with mysql://, postgres://, or postgresql://',
+    'DATABASE_URL must start with mysql://. The current migration pipeline is standardized on MySQL/MariaDB.',
   );
 }
 
-const driver = resolveDriver(databaseUrl);
+const driver = assertMysqlUrl(databaseUrl);
 
 export const AppDataSource = new DataSource({
   type: driver,
@@ -46,12 +48,4 @@ export const AppDataSource = new DataSource({
   migrations: [__dirname + '/migrations/**/*{.ts,.js}'],
   synchronize: false,
   logging: false,
-  ...(driver === 'postgres'
-    ? {
-        ssl:
-          process.env.APP_ENV === 'production'
-            ? { rejectUnauthorized: false }
-            : false,
-      }
-    : {}),
 });

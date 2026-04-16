@@ -7,8 +7,10 @@ import {
 } from 'typeorm';
 
 /**
- * Baseline migration — creates the full schema from scratch.
+ * Baseline migration for the current MySQL/MariaDB runtime.
+ * Creates the full schema from scratch.
  * Run with: npm run migration:run
+ * Full reset with: npm run migration:fresh
  * Revert with: npm run migration:revert
  */
 export class BaselineSchema1744900000000 implements MigrationInterface {

@@ -14,7 +14,7 @@
 
 ```
 transAllal/
-├── backend-trans-allal/      NestJS 11 + TypeScript + PostgreSQL + Redis
+├── backend-trans-allal/      NestJS 11 + TypeScript + MySQL + Redis
 ├── dashboard-trans-allal/    Next.js 16 App Router + React 19 + Tailwind v4
 └── app-trans-allal/          Expo 54 + React Native + Expo Router
 ```
@@ -166,7 +166,7 @@ Locale:     en | ar
   APP_ENV=development
   APP_URL=http://localhost:3000
   API_PREFIX=api/v1
-  DATABASE_URL=postgresql://postgres:postgres@localhost:5432/trans_allal
+  DATABASE_URL=mysql://mouawia:mouawia@localhost:3306/trans-allal-db
   JWT_SECRET=change_me_32chars_minimum_secret_key
   JWT_EXPIRES_IN=15m
   JWT_REFRESH_SECRET=change_me_refresh_secret_key_32ch
@@ -184,7 +184,7 @@ Locale:     en | ar
 
 - [ ] **1-C-1** Keep `src/config/database/database.config.ts` as the single database config entrypoint. Expand the existing file; do not create a parallel `src/config/database/index.ts`.
 - [ ] **1-C-2** Replace the placeholder providers in `src/database/database.module.ts` with the real TypeORM bootstrap using `TypeOrmModule.forRootAsync(...)`.
-- [ ] **1-C-3** Use one PostgreSQL TypeORM connection in Phase 1, sourced from `database.url`, while preserving `businessSchema` and `telemetrySchema` values for entity table organization.
+- [ ] **1-C-3** Use one MySQL TypeORM connection in Phase 1, sourced from `database.url`, while preserving module boundaries between business data and telemetry data.
 - [ ] **1-C-4** If a separate factory is needed, add `src/database/typeorm.config.ts`; do not duplicate config namespaces or add Prisma files.
 
 ---

@@ -8,6 +8,7 @@
 
 - NestJS 11
 - TypeScript
+- MySQL / MariaDB via TypeORM migrations
 - `@nestjs/config` for centralized environment loading
 - Validation pipe readiness via `class-validator` and `class-transformer`
 
@@ -89,7 +90,16 @@ Useful commands:
 npm run build
 npm run test
 npm run test:e2e
+npm run migration:show
+npm run migration:run
+npm run migration:fresh
 ```
+
+Migration notes:
+
+- Schema changes are managed through TypeORM migrations only.
+- `synchronize` is disabled in all environments.
+- `npm run migration:fresh` drops and recreates the configured MySQL database, then reapplies all migrations from zero.
 
 ## Architecture Notes
 

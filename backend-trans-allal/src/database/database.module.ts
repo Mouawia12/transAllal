@@ -3,19 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 
-function resolveDatabaseType(
+function assertMysqlDatabaseUrl(
   url: string,
-): Extract<TypeOrmModuleOptions['type'], 'mysql' | 'postgres'> {
+): Extract<TypeOrmModuleOptions['type'], 'mysql'> {
   if (url.startsWith('mysql://')) {
     return 'mysql';
   }
 
-  if (url.startsWith('postgres://') || url.startsWith('postgresql://')) {
-    return 'postgres';
-  }
-
   throw new Error(
-    'DATABASE_URL must start with mysql://, postgres://, or postgresql://',
+    'DATABASE_URL must start with mysql://. The backend runtime is standardized on MySQL/MariaDB.',
   );
 }
 
@@ -26,31 +22,15 @@ function resolveDatabaseType(
       useFactory: (config: ConfigService): TypeOrmModuleOptions => {
         const url = config.get<string>('database.url') ?? '';
         const appEnv = config.get<string>('app.env') ?? 'development';
-        const type = resolveDatabaseType(url);
-
-        if (type === 'postgres') {
-          const postgresOptions: TypeOrmModuleOptions = {
-            type: 'postgres',
-            url,
-            entities: [__dirname + '/../**/*.entity{.ts,.js}'],
-            autoLoadEntities: true,
-            // Never auto-sync: schema changes must go through migrations.
-            // Run `npm run migration:run` before deploying.
-            synchronize: false,
-            logging: appEnv === 'development',
-            ssl:
-              appEnv === 'production' ? { rejectUnauthorized: false } : false,
-          };
-
-          return postgresOptions;
-        }
+        const type = assertMysqlDatabaseUrl(url);
 
         const mysqlOptions: TypeOrmModuleOptions = {
-          type: 'mysql',
+          type,
           url,
           entities: [__dirname + '/../**/*.entity{.ts,.js}'],
           autoLoadEntities: true,
           // Never auto-sync: schema changes must go through migrations.
+          // Use `npm run migration:run` or `npm run migration:fresh`.
           synchronize: false,
           logging: appEnv === 'development',
         };
