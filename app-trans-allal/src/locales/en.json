@@ -101,5 +101,31 @@
     "english": "English",
     "theme": "Theme",
     "version": "Version"
+  },
+  "setup": {
+    "eyebrow": "Required Setup",
+    "title": "Enable permissions before using the app",
+    "subtitle": "The app stays locked until location, background execution, and notification requirements are enabled for reliable live tracking.",
+    "allDone": "Setup complete",
+    "pendingSummary": "Some requirements are still pending",
+    "completeDescription": "All required settings are enabled. The app will open automatically.",
+    "pendingDescription": "Complete the following items once on this phone so tracking can keep running in the background without interruptions.",
+    "requestAll": "Run guided setup",
+    "locationServicesTitle": "Location services",
+    "locationServicesDescription": "GPS and device location services must stay enabled so the app can send speed and live location updates.",
+    "openLocationSettings": "Open location settings",
+    "locationPermissionsTitle": "Always-on location permission",
+    "locationPermissionsDescription": "The app needs both foreground and background location access, including the “Allow all the time” option.",
+    "grantLocationPermissions": "Request location access",
+    "notificationTitle": "Notification permission",
+    "notificationDescription": "Notifications are required for alerts, newly assigned trips, and foreground service visibility while the app runs in background.",
+    "grantNotificationPermission": "Enable notifications",
+    "batteryOptimizationTitle": "Battery optimization",
+    "batteryOptimizationDescription": "Disable battery restrictions for this app so Android does not stop background tracking.",
+    "disableBatteryOptimization": "Open battery settings",
+    "manufacturerTitle": "Phone-specific background settings",
+    "manufacturerDescription": "Some phones add extra controls such as auto-start or background activity. Complete them, then confirm here.",
+    "openBackgroundSettings": "Open background settings",
+    "confirmManufacturer": "I completed the background settings"
   }
 }

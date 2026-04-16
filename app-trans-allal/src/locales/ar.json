@@ -101,5 +101,31 @@
     "english": "الإنجليزية",
     "theme": "المظهر",
     "version": "الإصدار"
+  },
+  "setup": {
+    "eyebrow": "إعداد إلزامي",
+    "title": "فعّل الصلاحيات قبل استخدام التطبيق",
+    "subtitle": "لن يسمح التطبيق بالدخول حتى تكتمل إعدادات الموقع والخلفية والإشعارات المطلوبة لضمان التتبع اللحظي والعمل في الخلفية.",
+    "allDone": "الإعداد مكتمل",
+    "pendingSummary": "بقيت بعض المتطلبات",
+    "completeDescription": "كل الشروط مفعّلة. سيتم فتح التطبيق تلقائياً.",
+    "pendingDescription": "أكمل العناصر التالية مرة واحدة على هذا الهاتف حتى يستمر التتبع في الخلفية بدون انقطاع.",
+    "requestAll": "بدء الإعداد التلقائي",
+    "locationServicesTitle": "تشغيل خدمات الموقع",
+    "locationServicesDescription": "يجب أن يكون GPS وخدمات الموقع مفعّلة على الهاتف حتى يرسل التطبيق السرعة والموقع في الوقت الحقيقي.",
+    "openLocationSettings": "فتح إعدادات الموقع",
+    "locationPermissionsTitle": "إذن الموقع دائماً",
+    "locationPermissionsDescription": "يجب السماح للموقع أثناء الاستخدام وفي الخلفية مع خيار «السماح دائماً».",
+    "grantLocationPermissions": "طلب إذن الموقع",
+    "notificationTitle": "إذن الإشعارات",
+    "notificationDescription": "الإشعارات مطلوبة للتنبيهات والرحلات الجديدة وإبقاء المستخدم على علم عند عمل التطبيق في الخلفية.",
+    "grantNotificationPermission": "تفعيل الإشعارات",
+    "batteryOptimizationTitle": "إلغاء تقييد البطارية",
+    "batteryOptimizationDescription": "فعّل خيار عدم تقييد البطارية أو تجاهل تحسين البطارية حتى لا يوقف النظام التتبع في الخلفية.",
+    "disableBatteryOptimization": "فتح إعدادات البطارية",
+    "manufacturerTitle": "إعدادات الخلفية الخاصة بالهاتف",
+    "manufacturerDescription": "بعض الهواتف تضيف إعدادات إضافية مثل التشغيل التلقائي أو السماح بالنشاط في الخلفية. أكملها ثم أكد ذلك هنا.",
+    "openBackgroundSettings": "فتح إعدادات الخلفية",
+    "confirmManufacturer": "أكملت إعدادات الخلفية"
   }
 }

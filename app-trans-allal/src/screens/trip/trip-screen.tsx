@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
   FlatList,
   Pressable,
   RefreshControl,
@@ -8,8 +10,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { apiClient } from '@/services/api/client';
+import { realtimeClient } from '@/services/api/realtime-client';
 import type { Trip, TripStatus } from '@/types/api';
 import { appColors } from '@/theme/colors';
 
@@ -29,6 +34,7 @@ const STATUS_TEXT_COLORS: Record<TripStatus, string> = {
 
 export function TripScreen() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,6 +54,29 @@ export function TripScreen() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  useEffect(() => {
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        void load();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppState);
+    return () => subscription.remove();
+  }, [load]);
+
+  useEffect(() => {
+    return realtimeClient.onTripStatusChanged(() => {
+      void load();
+    });
+  }, [load]);
 
   async function handleTripAction(trip: Trip, newStatus: 'IN_PROGRESS' | 'COMPLETED') {
     setActionLoading(trip.id);
@@ -75,9 +104,18 @@ export function TripScreen() {
   return (
     <FlatList
       style={styles.container}
-      contentContainerStyle={[styles.content, trips.length === 0 && styles.emptyContent]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: Math.max(insets.top + 8, 16) },
+        trips.length === 0 && styles.emptyContent,
+      ]}
       data={trips}
       keyExtractor={(item) => item.id}
+      ListHeaderComponent={
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{t('trip.title')}</Text>
+        </View>
+      }
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -190,6 +228,15 @@ function TripCard({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: appColors.light.background },
   content: { padding: 16 },
+  header: {
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: appColors.light.text,
+    textAlign: 'right',
+  },
   emptyContent: { flex: 1 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContainer: {

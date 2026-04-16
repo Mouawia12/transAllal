@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { apiClient } from '@/services/api/client';
 import { useAuthStore } from '@/store/auth.store';
 import { useTrackingState } from '@/hooks/use-tracking-state';
@@ -47,12 +49,33 @@ export function ProfileScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
-  useEffect(() => {
-    apiClient<DriverProfile>('/drivers/me')
+  const load = useCallback(async () => {
+    await apiClient<DriverProfile>('/drivers/me')
       .then(setProfile)
       .catch(() => null)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  useEffect(() => {
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        void load();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppState);
+    return () => subscription.remove();
+  }, [load]);
 
   useEffect(() => {
     if (!loading) {

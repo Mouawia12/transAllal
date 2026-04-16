@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { I18nextProvider } from 'react-i18next';
 import 'react-native-reanimated';
 import { useAppColorScheme } from '@/hooks/use-app-color-scheme';
+import { useRequiredSetupStatus } from '@/hooks/use-required-setup-status';
 import { createNavigationTheme } from '@/theme/navigation-theme';
 import i18n, { initI18n } from '@/lib/i18n';
 import { useAuthStore } from '@/store/auth.store';
@@ -28,6 +29,10 @@ export default function RootLayout() {
   const hydrate = useAuthStore((s) => s.hydrate);
   const accessToken = useAuthStore((s) => s.accessToken);
   const driverId = useAuthStore((s) => s.user?.driverId ?? null);
+  const { status: requiredSetupStatus } = useRequiredSetupStatus(
+    Boolean(accessToken),
+  );
+  const isRequiredSetupComplete = requiredSetupStatus?.isComplete ?? false;
 
   useEffect(() => {
     async function bootstrap() {
@@ -46,7 +51,7 @@ export default function RootLayout() {
   // Keep background tracking alive, but only keep the WebSocket open while the app
   // is active. Background location updates continue through the native task and HTTP.
   useEffect(() => {
-    if (!accessToken) {
+    if (!accessToken || !isRequiredSetupComplete) {
       realtimeClient.disconnect();
       return;
     }
@@ -84,14 +89,14 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
     };
-  }, [accessToken, appState, driverId]);
+  }, [accessToken, appState, driverId, isRequiredSetupComplete]);
 
   // Show local notification when a new trip is assigned via WebSocket (online path).
   // The offline/background path is covered by FCM push notifications sent from the
   // backend PushNotificationService — both paths use the same user-facing copy so
   // the experience is consistent regardless of connectivity state.
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || !isRequiredSetupComplete) return;
     const unsubscribe = realtimeClient.onTripStatusChanged(async (data) => {
       if (data.status === 'PENDING') {
         await showLocalNotification(
@@ -102,13 +107,13 @@ export default function RootLayout() {
       }
     });
     return unsubscribe;
-  }, [accessToken]);
+  }, [accessToken, isRequiredSetupComplete]);
 
   // Show local notification for CRITICAL/HIGH alerts received while the app is
   // in the foreground (online path). Lower-severity alerts are surfaced through
   // the in-app alerts tab only.
   useEffect(() => {
-    if (!accessToken) return;
+    if (!accessToken || !isRequiredSetupComplete) return;
     const unsubscribe = realtimeClient.onAlert(async (data) => {
       const alert = data as { alertId?: string; type?: string; severity?: string; message?: string | null };
       if (alert.severity === 'CRITICAL' || alert.severity === 'HIGH') {
@@ -120,7 +125,7 @@ export default function RootLayout() {
       }
     });
     return unsubscribe;
-  }, [accessToken]);
+  }, [accessToken, isRequiredSetupComplete]);
 
   // Flush offline location queue when connectivity is restored
   useEffect(() => {

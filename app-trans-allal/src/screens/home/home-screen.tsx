@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
   Image,
   RefreshControl,
   ScrollView,
@@ -9,11 +11,13 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/auth.store';
 import { apiClient } from '@/services/api/client';
+import { realtimeClient } from '@/services/api/realtime-client';
 import { useTrackingState } from '@/hooks/use-tracking-state';
 import type { DriverProfile, Trip } from '@/types/api';
 import { appColors } from '@/theme/colors';
@@ -112,7 +116,7 @@ export function HomeScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const [prof, trips] = await Promise.all([
         apiClient<DriverProfile>('/drivers/me'),
@@ -126,9 +130,32 @@ export function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
+
+  useEffect(() => {
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        void load();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppState);
+    return () => subscription.remove();
+  }, [load]);
+
+  useEffect(() => {
+    return realtimeClient.onTripStatusChanged(() => {
+      void load();
+    });
+  }, [load]);
 
   useEffect(() => {
     if (!loading) {

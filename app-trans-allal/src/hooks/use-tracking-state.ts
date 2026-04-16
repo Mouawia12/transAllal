@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { locationTracker } from '@/services/location/location-tracker.service';
 
 /**
@@ -18,6 +19,12 @@ export function useTrackingState() {
     void sync();
   }, [sync]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void sync();
+    }, [sync]),
+  );
+
   useEffect(() => {
     const handleAppState = (next: AppStateStatus) => {
       if (next === 'active') void sync();
@@ -25,6 +32,10 @@ export function useTrackingState() {
     const sub = AppState.addEventListener('change', handleAppState);
     return () => sub.remove();
   }, [sync]);
+
+  useEffect(() => {
+    return locationTracker.subscribeToTrackingState(setIsTracking);
+  }, []);
 
   return isTracking;
 }

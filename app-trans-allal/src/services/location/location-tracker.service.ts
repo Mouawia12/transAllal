@@ -23,6 +23,7 @@ const WEB_DISTANCE_INTERVAL_M = 3;
 const STATIONARY_TOLERANCE_M = 20;
 
 type TrackingRuntimeMode = 'foreground' | 'background';
+type TrackingStateListener = (isTracking: boolean) => void;
 
 let webLocationSubscription: Location.LocationSubscription | null = null;
 let lastTrackingSample:
@@ -39,6 +40,13 @@ let lastBatteryReading:
     }
   | null = null;
 let currentNativeTrackingMode: TrackingRuntimeMode | null = null;
+const trackingStateListeners = new Set<TrackingStateListener>();
+
+function notifyTrackingStateChange(isTracking: boolean) {
+  for (const listener of trackingStateListeners) {
+    listener(isTracking);
+  }
+}
 
 function createNativeLocationTaskOptions(
   mode: TrackingRuntimeMode,
@@ -63,8 +71,8 @@ function createNativeLocationTaskOptions(
     activityType: Location.ActivityType.AutomotiveNavigation,
     pausesUpdatesAutomatically: false,
     foregroundService: {
-      notificationTitle: 'Trans Allal',
-      notificationBody: 'يتم بث موقعك في الخلفية للمراقبة المباشرة',
+      notificationTitle: 'Trans Allal • المراقبة فعالة',
+      notificationBody: 'يتم تتبع موقعك الآن في الخلفية. افتح التطبيق إذا أردت إيقاف المراقبة.',
       notificationColor: '#083D35',
       killServiceOnDestroy: false,
     },
@@ -345,12 +353,14 @@ export const locationTracker = {
 
       await setTrackingEnabled(true);
       await publishCurrentLocationSnapshot();
+      notifyTrackingStateChange(true);
       return;
     }
 
     await startNativeLocationUpdates('foreground');
     await setTrackingEnabled(true);
     await publishCurrentLocationSnapshot();
+    notifyTrackingStateChange(true);
   },
 
   async stop(): Promise<void> {
@@ -358,6 +368,7 @@ export const locationTracker = {
       webLocationSubscription?.remove();
       webLocationSubscription = null;
       await setTrackingEnabled(false);
+      notifyTrackingStateChange(false);
       return;
     }
     try {
@@ -370,6 +381,7 @@ export const locationTracker = {
     } finally {
       currentNativeTrackingMode = null;
       await setTrackingEnabled(false);
+      notifyTrackingStateChange(false);
     }
   },
 
@@ -437,6 +449,7 @@ export const locationTracker = {
       if (!webLocationSubscription) {
         await this.start();
       }
+      notifyTrackingStateChange(true);
       return true;
     }
 
@@ -450,10 +463,18 @@ export const locationTracker = {
     if (startedTracking) {
       await publishCurrentLocationSnapshot();
     }
+    notifyTrackingStateChange(true);
     return true;
   },
 
   async flushPendingLocations(): Promise<void> {
     await flushQueuedLocationPayloads();
+  },
+
+  subscribeToTrackingState(listener: TrackingStateListener): () => void {
+    trackingStateListeners.add(listener);
+    return () => {
+      trackingStateListeners.delete(listener);
+    };
   },
 };
