@@ -374,12 +374,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           'relative mx-auto grid max-w-[1600px] gap-2.5 lg:h-[calc(100dvh-2rem)] lg:gap-3',
-          isDesktopSidebarOpen
+          isDesktopViewport && isDesktopSidebarOpen
             ? 'lg:grid-cols-[280px_minmax(0,1fr)]'
             : 'lg:grid-cols-[minmax(0,1fr)]',
         )}
       >
-        {isDesktopSidebarOpen ? (
+        {isDesktopViewport && isDesktopSidebarOpen ? (
           <Sidebar onHide={handleHideSidebar} />
         ) : null}
 
