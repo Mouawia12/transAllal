@@ -15,6 +15,7 @@ import { useCompanyScope } from '../../lib/company/use-company-scope';
 import type { ApiResponse, Driver } from '../../types/shared';
 
 const SIDEBAR_STORAGE_KEY = 'trans-allal:dashboard-sidebar-open';
+const NOTIFICATIONS_STORAGE_KEY = 'trans-allal:dashboard-notifications:v1';
 
 export type DashboardNotification = {
   id: string;
@@ -46,11 +47,59 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    try {
+      const storedNotifications = window.localStorage.getItem(
+        NOTIFICATIONS_STORAGE_KEY,
+      );
+      if (!storedNotifications) {
+        return;
+      }
+
+      const parsedNotifications = JSON.parse(storedNotifications) as Array<
+        Omit<DashboardNotification, 'at'> & { at: string }
+      >;
+
+      if (!Array.isArray(parsedNotifications)) {
+        return;
+      }
+
+      setNotifications(
+        parsedNotifications
+          .filter((item) => item && typeof item.id === 'string')
+          .map((item) => ({
+            ...item,
+            at: new Date(item.at),
+          }))
+          .slice(0, 20),
+      );
+    } catch {
+      window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem(
       SIDEBAR_STORAGE_KEY,
       isSidebarOpen ? '1' : '0',
     );
   }, [isSidebarOpen]);
+
+  useEffect(() => {
+    const serializableNotifications = notifications.slice(0, 20).map((item) => ({
+      ...item,
+      at: item.at.toISOString(),
+    }));
+
+    window.localStorage.setItem(
+      NOTIFICATIONS_STORAGE_KEY,
+      JSON.stringify(serializableNotifications),
+    );
+    (
+      window as Window & {
+        __transallalNotifications?: DashboardNotification[];
+      }
+    ).__transallalNotifications = notifications;
+  }, [notifications]);
 
   // Request browser notification permission once on mount
   useEffect(() => {
@@ -132,6 +181,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     realtimeClient.subscribeToCompany(companyId);
 
     const handleOnlineChanged = (event: OnlineChangedEvent) => {
+      (
+        window as Window & {
+          __transallalLastOnlineEvent?: OnlineChangedEvent;
+        }
+      ).__transallalLastOnlineEvent = event;
+
       const driverName = resolveDriverName(event.driverId);
 
       pushNotification({
@@ -170,6 +225,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     };
 
     const handleTripStatusChanged = (event: TripStatusChangedEvent) => {
+      (
+        window as Window & {
+          __transallalLastTripStatusEvent?: TripStatusChangedEvent;
+        }
+      ).__transallalLastTripStatusEvent = event;
+
       void qc.invalidateQueries({ queryKey: ['trips', companyId] });
 
       if (
