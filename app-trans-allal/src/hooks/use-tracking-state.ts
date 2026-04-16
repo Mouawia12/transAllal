@@ -10,7 +10,6 @@ export function useTrackingState() {
   const [isTracking, setIsTracking] = useState(false);
 
   const sync = useCallback(async () => {
-    await locationTracker.restoreBackgroundTracking();
     const tracking = await locationTracker.isTracking();
     setIsTracking(tracking);
   }, []);

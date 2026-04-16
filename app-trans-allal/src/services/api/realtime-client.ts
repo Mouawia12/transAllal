@@ -12,8 +12,11 @@ const WsEvents = {
 } as const;
 
 let socket: Socket | null = null;
-// Remembers the last driver subscribed so we can re-subscribe after reconnect
 let trackedDriverId: string | null = null;
+const tripStatusChangedListeners = new Set<
+  (data: { tripId: string; status: string }) => void
+>();
+const alertListeners = new Set<(data: unknown) => void>();
 
 export const realtimeClient = {
   connect(token: string): void {
@@ -38,7 +41,6 @@ export const realtimeClient = {
 
     socket.on('connect', () => {
       console.log('[WS] Connected');
-      // Re-subscribe to driver room after every (re)connect
       if (trackedDriverId) {
         socket?.emit(WsEvents.DRIVER_SUBSCRIBE, { driverId: trackedDriverId });
       }
@@ -50,6 +52,18 @@ export const realtimeClient = {
 
     socket.on('connect_error', (err) => {
       console.warn('[WS] Connection error:', err.message);
+    });
+
+    socket.on(WsEvents.TRIP_STATUS_CHANGED, (data) => {
+      for (const listener of tripStatusChangedListeners) {
+        listener(data as { tripId: string; status: string });
+      }
+    });
+
+    socket.on(WsEvents.ALERT_RAISED, (data) => {
+      for (const listener of alertListeners) {
+        listener(data);
+      }
     });
   },
 
@@ -71,14 +85,20 @@ export const realtimeClient = {
     socket?.emit(WsEvents.DRIVER_LOCATION_PUBLISH, payload);
   },
 
-  onTripStatusChanged(cb: (data: { tripId: string; status: string }) => void): () => void {
-    socket?.on(WsEvents.TRIP_STATUS_CHANGED, cb);
-    return () => { socket?.off(WsEvents.TRIP_STATUS_CHANGED, cb); };
+  onTripStatusChanged(
+    cb: (data: { tripId: string; status: string }) => void,
+  ): () => void {
+    tripStatusChangedListeners.add(cb);
+    return () => {
+      tripStatusChangedListeners.delete(cb);
+    };
   },
 
   onAlert(cb: (data: unknown) => void): () => void {
-    socket?.on(WsEvents.ALERT_RAISED, cb);
-    return () => { socket?.off(WsEvents.ALERT_RAISED, cb); };
+    alertListeners.add(cb);
+    return () => {
+      alertListeners.delete(cb);
+    };
   },
 
   disconnect(): void {

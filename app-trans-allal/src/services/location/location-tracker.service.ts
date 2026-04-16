@@ -13,15 +13,16 @@ import {
 
 const BACKGROUND_LOCATION_TASK = 'trans-allal-background-location';
 const TRACKING_ENABLED_KEY = 'trans-allal:tracking-enabled';
+const BATTERY_CACHE_MS = 30_000;
+const FOREGROUND_PUBLISH_INTERVAL_MS = 5_000;
+const BACKGROUND_PUBLISH_INTERVAL_MS = 10_000;
+const FOREGROUND_DISTANCE_INTERVAL_M = 5;
+const BACKGROUND_DISTANCE_INTERVAL_M = 15;
 
-// Publishing cadence: 5 s on iOS/Android (platform task minimum), 3 m / 5 s on web.
-// This gives near-real-time tracking (~5–10 s end-to-end latency including network).
-// If sub-second SLA is required, switch to a WebSocket streaming approach instead of
-// HTTP polling, and negotiate a lower timeInterval with the platform (iOS ignores
-// values below ~5 s in background mode; foreground can go to ~1 s).
-const PUBLISH_INTERVAL_MS = 5000;
 const WEB_DISTANCE_INTERVAL_M = 3;
 const STATIONARY_TOLERANCE_M = 20;
+
+type TrackingRuntimeMode = 'foreground' | 'background';
 
 let webLocationSubscription: Location.LocationSubscription | null = null;
 let lastTrackingSample:
@@ -31,24 +32,45 @@ let lastTrackingSample:
       recordedAt: number;
     }
   | null = null;
+let lastBatteryReading:
+  | {
+      level: number;
+      recordedAt: number;
+    }
+  | null = null;
+let currentNativeTrackingMode: TrackingRuntimeMode | null = null;
 
-const nativeLocationTaskOptions: Location.LocationTaskOptions = {
-  accuracy: Location.Accuracy.BestForNavigation,
-  timeInterval: PUBLISH_INTERVAL_MS,
-  distanceInterval: 5,
-  deferredUpdatesDistance: 0,
-  deferredUpdatesInterval: PUBLISH_INTERVAL_MS,
-  deferredUpdatesTimeout: PUBLISH_INTERVAL_MS,
-  activityType: Location.ActivityType.AutomotiveNavigation,
-  pausesUpdatesAutomatically: false,
-  foregroundService: {
-    notificationTitle: 'Trans Allal',
-    notificationBody: 'يتم بث موقعك في الخلفية للمراقبة المباشرة',
-    notificationColor: '#083D35',
-    killServiceOnDestroy: false,
-  },
-  showsBackgroundLocationIndicator: true,
-};
+function createNativeLocationTaskOptions(
+  mode: TrackingRuntimeMode,
+): Location.LocationTaskOptions {
+  const isForeground = mode === 'foreground';
+  const timeInterval = isForeground
+    ? FOREGROUND_PUBLISH_INTERVAL_MS
+    : BACKGROUND_PUBLISH_INTERVAL_MS;
+  const distanceInterval = isForeground
+    ? FOREGROUND_DISTANCE_INTERVAL_M
+    : BACKGROUND_DISTANCE_INTERVAL_M;
+
+  return {
+    accuracy: isForeground
+      ? Location.Accuracy.Highest
+      : Location.Accuracy.High,
+    timeInterval,
+    distanceInterval,
+    deferredUpdatesDistance: distanceInterval,
+    deferredUpdatesInterval: timeInterval,
+    deferredUpdatesTimeout: timeInterval,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+    pausesUpdatesAutomatically: false,
+    foregroundService: {
+      notificationTitle: 'Trans Allal',
+      notificationBody: 'يتم بث موقعك في الخلفية للمراقبة المباشرة',
+      notificationColor: '#083D35',
+      killServiceOnDestroy: false,
+    },
+    showsBackgroundLocationIndicator: true,
+  };
+}
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
@@ -116,15 +138,26 @@ function toTrackingPayload(location: Location.LocationObject) {
 }
 
 async function readBatteryLevel(): Promise<number | undefined> {
+  const now = Date.now();
+  if (lastBatteryReading && now - lastBatteryReading.recordedAt < BATTERY_CACHE_MS) {
+    return lastBatteryReading.level;
+  }
+
   try {
     const level = await Battery.getBatteryLevelAsync();
     if (level >= 0 && level <= 1) {
-      return Math.round(level * 100);
+      const normalizedLevel = Math.round(level * 100);
+      lastBatteryReading = {
+        level: normalizedLevel,
+        recordedAt: now,
+      };
+      return normalizedLevel;
     }
   } catch {
     // Battery API not available on this platform
   }
-  return undefined;
+
+  return lastBatteryReading?.level;
 }
 
 async function setTrackingEnabled(enabled: boolean): Promise<void> {
@@ -147,26 +180,35 @@ async function hasStartedNativeTracking(): Promise<boolean> {
       BACKGROUND_LOCATION_TASK,
     );
   } catch {
-    return TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
+    return await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
   }
 }
 
-async function startNativeLocationUpdates(): Promise<void> {
+async function startNativeLocationUpdates(
+  mode: TrackingRuntimeMode,
+): Promise<boolean> {
   const isStarted = await hasStartedNativeTracking();
+  if (isStarted && currentNativeTrackingMode === mode) {
+    return false;
+  }
+
   if (isStarted) {
-    return;
+    await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
   }
 
   await Location.startLocationUpdatesAsync(
     BACKGROUND_LOCATION_TASK,
-    nativeLocationTaskOptions,
+    createNativeLocationTaskOptions(mode),
   );
+
+  currentNativeTrackingMode = mode;
+  return true;
 }
 
 async function publishCurrentLocationSnapshot(): Promise<void> {
   try {
     const currentLocation = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.BestForNavigation,
+      accuracy: Location.Accuracy.High,
     });
     await publishLocationPayload(toTrackingPayload(currentLocation));
     await flushQueuedLocationPayloads();
@@ -292,7 +334,7 @@ export const locationTracker = {
         webLocationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
-            timeInterval: PUBLISH_INTERVAL_MS,
+            timeInterval: FOREGROUND_PUBLISH_INTERVAL_MS,
             distanceInterval: WEB_DISTANCE_INTERVAL_M,
           },
           (location) => {
@@ -306,7 +348,7 @@ export const locationTracker = {
       return;
     }
 
-    await startNativeLocationUpdates();
+    await startNativeLocationUpdates('foreground');
     await setTrackingEnabled(true);
     await publishCurrentLocationSnapshot();
   },
@@ -326,6 +368,7 @@ export const locationTracker = {
     } catch (e) {
       console.warn('[LocationTracker] Stop error:', e);
     } finally {
+      currentNativeTrackingMode = null;
       await setTrackingEnabled(false);
     }
   },
@@ -339,6 +382,35 @@ export const locationTracker = {
   async isTracking(): Promise<boolean> {
     if (Platform.OS === 'web') return webLocationSubscription !== null;
     return hasStartedNativeTracking();
+  },
+
+  async syncRuntimeMode(mode: TrackingRuntimeMode): Promise<boolean> {
+    if (Platform.OS === 'web') {
+      return webLocationSubscription !== null;
+    }
+
+    if (!(await isTrackingEnabled())) {
+      return false;
+    }
+
+    const token = await tokenStorage.getAccess();
+    if (!token) {
+      return false;
+    }
+
+    const foregroundPermission =
+      await Location.getForegroundPermissionsAsync();
+    const backgroundPermission =
+      await Location.getBackgroundPermissionsAsync();
+    if (
+      foregroundPermission.status !== 'granted' ||
+      backgroundPermission.status !== 'granted'
+    ) {
+      return false;
+    }
+
+    await startNativeLocationUpdates(mode);
+    return true;
   },
 
   async shouldKeepTrackingInBackground(): Promise<boolean> {
@@ -374,8 +446,10 @@ export const locationTracker = {
       return false;
     }
 
-    await startNativeLocationUpdates();
-    await publishCurrentLocationSnapshot();
+    const startedTracking = await startNativeLocationUpdates('background');
+    if (startedTracking) {
+      await publishCurrentLocationSnapshot();
+    }
     return true;
   },
 

@@ -2,6 +2,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { apiClient } from '@/services/api/client';
 
+let lastRegisteredPushToken: string | null = null;
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -24,7 +26,12 @@ async function requestPermission(): Promise<boolean> {
       vibrationPattern: [0, 250, 250, 250],
     });
   }
-  const { status } = await Notifications.requestPermissionsAsync();
+
+  const existingPermission = await Notifications.getPermissionsAsync();
+  const status =
+    existingPermission.status === 'granted'
+      ? existingPermission.status
+      : (await Notifications.requestPermissionsAsync()).status;
   return status === 'granted';
 }
 
@@ -40,11 +47,13 @@ export async function registerPushToken(): Promise<void> {
     // Use native FCM device token (works without Expo account)
     const { data: token } = await Notifications.getDevicePushTokenAsync();
     if (!token) return;
+    if (token === lastRegisteredPushToken) return;
 
     await apiClient('/drivers/me/push-token', {
       method: 'PATCH',
       body: JSON.stringify({ token }),
     });
+    lastRegisteredPushToken = token;
   } catch {
     // Non-critical — fail silently
   }

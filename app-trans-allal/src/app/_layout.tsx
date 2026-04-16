@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, AppState, AppStateStatus, View } from 'react-native';
 import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -22,6 +22,9 @@ export default function RootLayout() {
   const colorScheme = useAppColorScheme();
   const navigationTheme = createNavigationTheme(colorScheme);
   const [i18nReady, setI18nReady] = useState(false);
+  const [appState, setAppState] = useState<AppStateStatus>(
+    AppState.currentState,
+  );
   const hydrate = useAuthStore((s) => s.hydrate);
   const accessToken = useAuthStore((s) => s.accessToken);
   const driverId = useAuthStore((s) => s.user?.driverId ?? null);
@@ -35,29 +38,53 @@ export default function RootLayout() {
     void bootstrap();
   }, [hydrate]);
 
-  // Manage WebSocket lifecycle: connect when authenticated, disconnect on logout
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', setAppState);
+    return () => subscription.remove();
+  }, []);
+
+  // Keep background tracking alive, but only keep the WebSocket open while the app
+  // is active. Background location updates continue through the native task and HTTP.
   useEffect(() => {
     if (!accessToken) {
       realtimeClient.disconnect();
       return;
     }
-    realtimeClient.connect(accessToken);
-    if (driverId) {
-      realtimeClient.subscribeToDriver(driverId);
-    }
-    void registerPushToken();
-  }, [accessToken, driverId]);
 
-  // If the driver previously enabled tracking, restore the native/background
-  // location task after auth hydration so it keeps broadcasting even when the
-  // app was backgrounded or reopened later.
-  useEffect(() => {
-    if (!accessToken) {
-      return;
-    }
+    let cancelled = false;
+    const isActive = appState === 'active';
 
-    void locationTracker.restoreBackgroundTracking();
-  }, [accessToken]);
+    void (async () => {
+      const restored = await locationTracker.restoreBackgroundTracking();
+      if (cancelled) {
+        return;
+      }
+
+      if (restored) {
+        await locationTracker.syncRuntimeMode(
+          isActive ? 'foreground' : 'background',
+        );
+        if (cancelled) {
+          return;
+        }
+      }
+
+      if (!isActive) {
+        realtimeClient.disconnect();
+        return;
+      }
+
+      realtimeClient.connect(accessToken);
+      if (driverId) {
+        realtimeClient.subscribeToDriver(driverId);
+      }
+      await registerPushToken();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, appState, driverId]);
 
   // Show local notification when a new trip is assigned via WebSocket (online path).
   // The offline/background path is covered by FCM push notifications sent from the
