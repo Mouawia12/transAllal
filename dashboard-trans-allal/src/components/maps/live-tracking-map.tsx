@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
-import type { LatLngExpression, LatLngBoundsExpression } from 'leaflet';
+import { useEffect, useMemo, useRef } from 'react';
+import type { LatLngBoundsExpression, LatLngExpression } from 'leaflet';
 import {
   CircleMarker,
   MapContainer,
@@ -36,29 +36,61 @@ function formatSpeed(speedKmh: number | null) {
   return `${speedKmh} km/h`;
 }
 
+/**
+ * Syncs the Leaflet viewport to the selected driver.
+ *
+ * Key design decisions:
+ * - flyTo is ONLY called when selectedDriverId changes (not on every location
+ *   update). We track the previous ID in a ref so we can detect actual
+ *   selection changes even though the `selected` object reference changes on
+ *   every 5-second location tick.
+ * - fitBounds runs on initial render (when prevSelectedId is undefined) and
+ *   whenever the selection is cleared, so the map always frames all drivers
+ *   when no one is focused.
+ * - Drivers without coordinates are excluded from bounds calculation and
+ *   marker rendering.
+ */
 function MapViewportSync({
   drivers,
+  selectedDriverId,
   selected,
 }: {
   drivers: LiveDriver[];
+  selectedDriverId: string | null;
   selected: LiveDriver | null;
 }) {
   const map = useMap();
+  // undefined = component just mounted (initial render)
+  const prevSelectedId = useRef<string | null | undefined>(undefined);
+
+  const driversWithCoords = useMemo(
+    () =>
+      drivers.filter(
+        (d): d is LiveDriver & { lat: number; lng: number } =>
+          d.lat !== null && d.lng !== null,
+      ),
+    [drivers],
+  );
 
   const bounds = useMemo<LatLngBoundsExpression | null>(() => {
-    if (drivers.length < 2) {
-      return null;
-    }
-
-    return drivers.map((driver) => [driver.lat, driver.lng]);
-  }, [drivers]);
+    if (driversWithCoords.length < 2) return null;
+    return driversWithCoords.map((d) => [d.lat, d.lng] as [number, number]);
+  }, [driversWithCoords]);
 
   useEffect(() => {
     map.invalidateSize();
   }, [map, drivers.length]);
 
   useEffect(() => {
-    if (selected) {
+    const isInitial = prevSelectedId.current === undefined;
+    const idChanged = prevSelectedId.current !== selectedDriverId;
+    prevSelectedId.current = selectedDriverId;
+
+    // Location updates change the `selected` object reference but not the
+    // selectedDriverId string — bail out early so we don't flyTo on every tick.
+    if (!idChanged && !isInitial) return;
+
+    if (selectedDriverId && selected && selected.lat !== null && selected.lng !== null) {
       map.flyTo([selected.lat, selected.lng], FOCUSED_ZOOM, {
         animate: true,
         duration: 1.1,
@@ -66,16 +98,13 @@ function MapViewportSync({
       return;
     }
 
+    // No selection (initial load or selection cleared) — frame all drivers.
     if (bounds) {
-      map.fitBounds(bounds, {
-        padding: [36, 36],
-        maxZoom: 8,
-      });
-      return;
+      map.fitBounds(bounds, { padding: [36, 36], maxZoom: 8 });
+    } else {
+      map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
     }
-
-    map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
-  }, [bounds, map, selected]);
+  }, [bounds, map, selected, selectedDriverId]);
 
   return null;
 }
@@ -92,6 +121,16 @@ export function LiveTrackingMap({
   const selected =
     drivers.find((driver) => driver.driverId === selectedDriverId) ?? null;
 
+  // Only render markers for drivers whose position is known.
+  const mappableDrivers = useMemo(
+    () =>
+      drivers.filter(
+        (d): d is LiveDriver & { lat: number; lng: number } =>
+          d.lat !== null && d.lng !== null,
+      ),
+    [drivers],
+  );
+
   return (
     <MapContainer
       center={DEFAULT_CENTER}
@@ -105,9 +144,13 @@ export function LiveTrackingMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <ZoomControl position="topright" />
-      <MapViewportSync drivers={drivers} selected={selected} />
+      <MapViewportSync
+        drivers={drivers}
+        selectedDriverId={selectedDriverId}
+        selected={selected}
+      />
 
-      {drivers.map((driver) => {
+      {mappableDrivers.map((driver) => {
         const isSelected = driver.driverId === selectedDriverId;
         const color = markerColor(driver);
 

@@ -92,8 +92,10 @@ export interface LiveDriver {
   driverId: string;
   firstName: string;
   lastName: string;
-  lat: number;
-  lng: number;
+  /** null when the driver has never sent a location sample yet */
+  lat: number | null;
+  /** null when the driver has never sent a location sample yet */
+  lng: number | null;
   speedKmh: number | null;
   heading: number | null;
   accuracyM: number | null;

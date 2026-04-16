@@ -86,8 +86,8 @@ function normalizeLiveDriver(driver: LiveDriver): LiveDriver {
 
   return {
     ...driver,
-    lat: nextDriver.lat != null ? Number(nextDriver.lat) : 0,
-    lng: nextDriver.lng != null ? Number(nextDriver.lng) : 0,
+    lat: normalizeNullableNumber(nextDriver.lat),
+    lng: normalizeNullableNumber(nextDriver.lng),
     speedKmh: normalizeNullableNumber(nextDriver.speedKmh),
     heading: normalizeNullableNumber(nextDriver.heading),
     accuracyM: normalizeNullableNumber(nextDriver.accuracyM),
@@ -288,10 +288,29 @@ export default function TrackingPage() {
       setLiveMap((current) => {
         const previous = current[update.driverId];
 
-        // Driver not yet in map (came online after initial fetch) — refetch fleet
         if (!previous) {
+          // Driver not yet in map (came online after initial fetch).
+          // Optimistically insert a stub so the dot appears immediately,
+          // and trigger a refetch in parallel to fill in firstName/lastName.
           void refetchFleet();
-          return current;
+          return {
+            ...current,
+            [update.driverId]: {
+              driverId: update.driverId,
+              firstName: '',
+              lastName: '',
+              lat: Number(update.lat),
+              lng: Number(update.lng),
+              speedKmh: normalizeNullableNumber(update.speedKmh),
+              heading: normalizeNullableNumber(update.heading),
+              accuracyM: null,
+              batteryLevel: update.batteryLevel ?? null,
+              isOnline: true,
+              lastSeenAt: update.recordedAt,
+              sessionStartedAt: null,
+              tripId: update.tripId,
+            },
+          };
         }
 
         return {
@@ -702,7 +721,7 @@ export default function TrackingPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ManagementDetailTile
                     label={t('tracking.coordinates')}
-                    value={selected.lat !== 0 || selected.lng !== 0 ? `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}` : '—'}
+                    value={selected.lat !== null && selected.lng !== null ? `${selected.lat.toFixed(5)}, ${selected.lng.toFixed(5)}` : '—'}
                   />
                   <ManagementDetailTile
                     label={t('speed')}
