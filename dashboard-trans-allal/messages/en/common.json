@@ -204,7 +204,14 @@
     "no_notifications": "No notifications",
     "mark_all_read": "Mark all as read",
     "driver_online": "Driver online",
-    "driver_offline": "Driver offline"
+    "driver_offline": "Driver offline",
+    "driver_unknown": "Driver",
+    "driver_online_description": "{driverName} just came online.",
+    "driver_offline_description": "{driverName} went offline.",
+    "trip_started": "Trip started",
+    "trip_completed": "Trip completed",
+    "trip_started_description": "{driverName} started the trip from {origin} to {destination}.",
+    "trip_completed_description": "{driverName} completed the trip from {origin} to {destination}."
   },
   "overview": {
     "total_trips": "Total Trips",

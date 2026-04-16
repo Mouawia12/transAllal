@@ -36,6 +36,16 @@ export type OnlineChangedEvent = {
   sessionStartedAt: string | null;
 };
 
+export type TripStatusChangedEvent = {
+  driverId: string;
+  tripId: string;
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  origin: string;
+  destination: string;
+  driverName: string | null;
+  occurredAt: string;
+};
+
 class RealtimeClient {
   private socket: Socket | null = null;
   private activeCompanyId: string | null = null;
@@ -107,6 +117,14 @@ class RealtimeClient {
 
   offOnlineChanged(cb?: (data: OnlineChangedEvent) => void): void {
     this.socket?.off("driver.online.changed", cb);
+  }
+
+  onTripStatusChanged(cb: (data: TripStatusChangedEvent) => void): void {
+    this.socket?.on("trip.status.changed", cb);
+  }
+
+  offTripStatusChanged(cb?: (data: TripStatusChangedEvent) => void): void {
+    this.socket?.off("trip.status.changed", cb);
   }
 
   isConnected(): boolean {

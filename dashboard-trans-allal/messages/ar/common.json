@@ -204,7 +204,14 @@
     "no_notifications": "لا توجد إشعارات",
     "mark_all_read": "تحديد الكل كمقروء",
     "driver_online": "سائق متصل",
-    "driver_offline": "سائق غير متصل"
+    "driver_offline": "سائق غير متصل",
+    "driver_unknown": "سائق",
+    "driver_online_description": "بدأ {driverName} البث الآن.",
+    "driver_offline_description": "قام {driverName} بقطع الاتصال.",
+    "trip_started": "بدء رحلة",
+    "trip_completed": "إنهاء رحلة",
+    "trip_started_description": "بدأ {driverName} الرحلة من {origin} إلى {destination}.",
+    "trip_completed_description": "أنهى {driverName} الرحلة من {origin} إلى {destination}."
   },
   "overview": {
     "total_trips": "إجمالي الرحلات",

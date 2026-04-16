@@ -4,9 +4,11 @@ import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import {
   Activity,
   Bell,
+  CircleCheckBig,
   ChevronsLeft,
   ChevronsRight,
   LogOut,
+  Route,
   ShieldCheck,
   UserCircle2,
   Wifi,
@@ -21,12 +23,12 @@ import { BrandLogo } from '../shared/brand-logo';
 import { cn } from '../../lib/utils/cn';
 import { useAuthStore } from '../../lib/auth/auth-store';
 import { buildSignInHref, getCurrentAppPath } from '../../lib/auth/navigation';
-import type { DriverNotification } from './dashboard-shell';
+import type { DashboardNotification } from './dashboard-shell';
 
 interface TopbarProps {
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-  notifications: DriverNotification[];
+  notifications: DashboardNotification[];
   onMarkAllRead: () => void;
 }
 
@@ -55,6 +57,42 @@ function formatRelativeTime(date: Date): string {
   if (diff < 3600) return `منذ ${Math.floor(diff / 60)} د`;
   if (diff < 86400) return `منذ ${Math.floor(diff / 3600)} س`;
   return `منذ ${Math.floor(diff / 86400)} ي`;
+}
+
+function NotificationBadge({
+  notification,
+}: {
+  notification: DashboardNotification;
+}) {
+  if (notification.kind === 'driver-online') {
+    return (
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+        <Wifi size={14} />
+      </span>
+    );
+  }
+
+  if (notification.kind === 'driver-offline') {
+    return (
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500">
+        <WifiOff size={14} />
+      </span>
+    );
+  }
+
+  if (notification.kind === 'trip-started') {
+    return (
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+        <Route size={14} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+      <CircleCheckBig size={14} />
+    </span>
+  );
 }
 
 export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAllRead }: TopbarProps) {
@@ -223,24 +261,13 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
                             !notif.read && 'bg-[rgba(12,107,88,0.04)]',
                           )}
                         >
-                          <span
-                            className={cn(
-                              'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl',
-                              notif.isOnline
-                                ? 'bg-emerald-50 text-emerald-600'
-                                : 'bg-gray-100 text-gray-500',
-                            )}
-                          >
-                            {notif.isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-                          </span>
+                          <NotificationBadge notification={notif} />
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium text-[var(--color-ink)]">
-                              {notif.driverName}
+                              {notif.title}
                             </p>
                             <p className="text-xs text-[var(--color-muted)]">
-                              {notif.isOnline
-                                ? t('dashboard_shell.driver_online')
-                                : t('dashboard_shell.driver_offline')}
+                              {notif.description}
                             </p>
                           </div>
                           <span className="shrink-0 text-[11px] text-[var(--color-muted)]">

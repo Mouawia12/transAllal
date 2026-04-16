@@ -2,27 +2,39 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { cn } from '../../lib/utils/cn';
-import { realtimeClient, type OnlineChangedEvent } from '../../lib/api/realtime-client';
+import {
+  realtimeClient,
+  type OnlineChangedEvent,
+  type TripStatusChangedEvent,
+} from '../../lib/api/realtime-client';
 import { useCompanyScope } from '../../lib/company/use-company-scope';
 import type { ApiResponse, Driver } from '../../types/shared';
 
 const SIDEBAR_STORAGE_KEY = 'trans-allal:dashboard-sidebar-open';
 
-export type DriverNotification = {
+export type DashboardNotification = {
   id: string;
-  driverId: string;
-  driverName: string;
-  isOnline: boolean;
+  kind:
+    | 'driver-online'
+    | 'driver-offline'
+    | 'trip-started'
+    | 'trip-completed';
+  title: string;
+  description: string;
   at: Date;
   read: boolean;
 };
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  const t = useTranslations();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [notifications, setNotifications] = useState<DriverNotification[]>([]);
+  const [notifications, setNotifications] = useState<DashboardNotification[]>(
+    [],
+  );
   const { companyId } = useCompanyScope();
   const qc = useQueryClient();
 
@@ -51,6 +63,68 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
+  const pushNotification = useCallback(
+    ({
+      kind,
+      title,
+      description,
+      tag,
+      at,
+    }: {
+      kind: DashboardNotification['kind'];
+      title: string;
+      description: string;
+      tag: string;
+      at?: Date;
+    }) => {
+      const nextNotification: DashboardNotification = {
+        id: `${tag}-${Date.now()}`,
+        kind,
+        title,
+        description,
+        at: at ?? new Date(),
+        read: false,
+      };
+
+      setNotifications((prev) => [nextNotification, ...prev].slice(0, 20));
+
+      if (
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted'
+      ) {
+        new Notification(title, {
+          body: description,
+          icon: '/favicon.ico',
+          tag,
+        });
+      }
+    },
+    [],
+  );
+
+  const resolveDriverName = useCallback(
+    (driverId: string | null): string => {
+      if (!driverId || !companyId) {
+        return t('dashboard_shell.driver_unknown');
+      }
+
+      const cachedQueries = qc.getQueriesData<ApiResponse<Driver[]>>({
+        queryKey: ['drivers', companyId],
+      });
+
+      for (const [, queryData] of cachedQueries) {
+        const driver = queryData?.data?.find((item) => item.id === driverId);
+        if (driver) {
+          return `${driver.firstName} ${driver.lastName}`.trim();
+        }
+      }
+
+      return t('dashboard_shell.driver_unknown');
+    },
+    [companyId, qc, t],
+  );
+
   // Subscribe to company room and keep drivers list in sync with real-time events
   useEffect(() => {
     if (!companyId) return;
@@ -58,42 +132,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     realtimeClient.subscribeToCompany(companyId);
 
     const handleOnlineChanged = (event: OnlineChangedEvent) => {
+      const driverName = resolveDriverName(event.driverId);
+
+      pushNotification({
+        kind: event.isOnline ? 'driver-online' : 'driver-offline',
+        title: event.isOnline
+          ? t('dashboard_shell.driver_online')
+          : t('dashboard_shell.driver_offline'),
+        description: event.isOnline
+          ? t('dashboard_shell.driver_online_description', { driverName })
+          : t('dashboard_shell.driver_offline_description', { driverName }),
+        tag: `driver-status-${event.driverId}-${event.isOnline ? '1' : '0'}`,
+        at: event.lastSeenAt ? new Date(event.lastSeenAt) : new Date(),
+      });
+
       // Update every cached page of the drivers query without a round-trip
       qc.setQueriesData<ApiResponse<Driver[]>>(
         { queryKey: ['drivers', companyId] },
         (old) => {
           if (!old) return old;
-
-          // Find driver name for the notification
-          const driver = old.data.find((d) => d.id === event.driverId);
-          const driverName = driver
-            ? `${driver.firstName} ${driver.lastName}`.trim()
-            : 'سائق';
-
-          // Add to in-app notification list (keep last 20)
-          const newNotif: DriverNotification = {
-            id: `${event.driverId}-${Date.now()}`,
-            driverId: event.driverId,
-            driverName,
-            isOnline: event.isOnline,
-            at: new Date(),
-            read: false,
-          };
-          setNotifications((prev) => [newNotif, ...prev].slice(0, 20));
-
-          // Show browser notification if permission granted
-          if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-            new Notification(
-              event.isOnline ? 'سائق متصل' : 'سائق غير متصل',
-              {
-                body: event.isOnline
-                  ? `${driverName} بدأ البث الآن`
-                  : `${driverName} قطع الاتصال`,
-                icon: '/favicon.ico',
-                tag: `driver-${event.driverId}`,
-              },
-            );
-          }
 
           return {
             ...old,
@@ -112,12 +169,49 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       );
     };
 
+    const handleTripStatusChanged = (event: TripStatusChangedEvent) => {
+      void qc.invalidateQueries({ queryKey: ['trips', companyId] });
+
+      if (
+        event.status !== 'IN_PROGRESS' &&
+        event.status !== 'COMPLETED'
+      ) {
+        return;
+      }
+
+      const driverName =
+        event.driverName?.trim() || resolveDriverName(event.driverId);
+      const isStarted = event.status === 'IN_PROGRESS';
+
+      pushNotification({
+        kind: isStarted ? 'trip-started' : 'trip-completed',
+        title: isStarted
+          ? t('dashboard_shell.trip_started')
+          : t('dashboard_shell.trip_completed'),
+        description: isStarted
+          ? t('dashboard_shell.trip_started_description', {
+              driverName,
+              origin: event.origin,
+              destination: event.destination,
+            })
+          : t('dashboard_shell.trip_completed_description', {
+              driverName,
+              origin: event.origin,
+              destination: event.destination,
+            }),
+        tag: `trip-status-${event.tripId}-${event.status}`,
+        at: event.occurredAt ? new Date(event.occurredAt) : new Date(),
+      });
+    };
+
     realtimeClient.onOnlineChanged(handleOnlineChanged);
+    realtimeClient.onTripStatusChanged(handleTripStatusChanged);
 
     return () => {
       realtimeClient.offOnlineChanged(handleOnlineChanged);
+      realtimeClient.offTripStatusChanged(handleTripStatusChanged);
     };
-  }, [companyId, qc]);
+  }, [companyId, pushNotification, qc, resolveDriverName, t]);
 
   return (
     <div className="relative min-h-screen overflow-hidden px-2.5 py-2.5 sm:px-3 sm:py-3 md:px-4 md:py-4">

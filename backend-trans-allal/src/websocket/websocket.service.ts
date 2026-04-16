@@ -57,14 +57,60 @@ export class WebsocketService {
       });
   }
 
-  emitTripAssigned(driverId: string, trip: { tripId: string; origin: string; destination: string }): void {
-    if (!this.server) return;
-    this.server.to(`driver:${driverId}`).emit(WsEvents.TRIP_STATUS_CHANGED, {
+  emitTripAssigned(
+    driverId: string,
+    companyId: string,
+    trip: {
+      tripId: string;
+      origin: string;
+      destination: string;
+      driverName: string | null;
+    },
+  ): void {
+    this.emitTripStatusChanged({
+      driverId,
+      companyId,
       tripId: trip.tripId,
       status: 'PENDING',
       origin: trip.origin,
       destination: trip.destination,
+      driverName: trip.driverName,
+      occurredAt: new Date(),
     });
+  }
+
+  emitTripStatusChanged(payload: {
+    driverId: string;
+    companyId: string;
+    tripId: string;
+    status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+    origin: string;
+    destination: string;
+    driverName: string | null;
+    occurredAt: Date;
+  }): void {
+    if (!this.server) {
+      return;
+    }
+
+    const event = {
+      driverId: payload.driverId,
+      tripId: payload.tripId,
+      status: payload.status,
+      origin: payload.origin,
+      destination: payload.destination,
+      driverName: payload.driverName,
+      occurredAt: payload.occurredAt,
+    };
+
+    this.server.to(`driver:${payload.driverId}`).emit(
+      WsEvents.TRIP_STATUS_CHANGED,
+      event,
+    );
+    this.server.to(`company:${payload.companyId}`).emit(
+      WsEvents.TRIP_STATUS_CHANGED,
+      event,
+    );
   }
 
   emitDriverLocation(location: {

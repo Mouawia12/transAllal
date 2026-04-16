@@ -116,11 +116,16 @@ export class TripsService {
         });
       }
       // WebSocket notification (works when app is in foreground/background with active WS)
-      this.websocketService.emitTripAssigned(assignedDriver.id, {
+      this.websocketService.emitTripAssigned(
+        assignedDriver.id,
+        trip.companyId,
+        {
         tripId: trip.id,
         origin: dto.origin,
         destination: dto.destination,
-      });
+        driverName: `${assignedDriver.firstName} ${assignedDriver.lastName}`.trim(),
+        },
+      );
     }
 
     return trip;
@@ -163,7 +168,20 @@ export class TripsService {
       }
       trip.status = TripStatus.IN_PROGRESS;
       trip.startedAt = new Date();
-      return this.repo.save(trip);
+      const savedTrip = await this.repo.save(trip);
+      this.websocketService.emitTripStatusChanged({
+        driverId,
+        companyId: trip.companyId,
+        tripId: trip.id,
+        status: TripStatus.IN_PROGRESS,
+        origin: trip.origin,
+        destination: trip.destination,
+        driverName: trip.driver
+          ? `${trip.driver.firstName} ${trip.driver.lastName}`.trim()
+          : null,
+        occurredAt: savedTrip.startedAt ?? new Date(),
+      });
+      return savedTrip;
     }
 
     if (trip.status !== TripStatus.IN_PROGRESS) {
@@ -174,7 +192,20 @@ export class TripsService {
 
     trip.status = TripStatus.COMPLETED;
     trip.completedAt = new Date();
-    return this.repo.save(trip);
+    const savedTrip = await this.repo.save(trip);
+    this.websocketService.emitTripStatusChanged({
+      driverId,
+      companyId: trip.companyId,
+      tripId: trip.id,
+      status: TripStatus.COMPLETED,
+      origin: trip.origin,
+      destination: trip.destination,
+      driverName: trip.driver
+        ? `${trip.driver.firstName} ${trip.driver.lastName}`.trim()
+        : null,
+      occurredAt: savedTrip.completedAt ?? new Date(),
+    });
+    return savedTrip;
   }
 
   async cancel(id: string, companyId?: string): Promise<Trip> {
