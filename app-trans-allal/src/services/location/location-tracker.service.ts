@@ -11,7 +11,13 @@ import {
 } from '@/services/connectivity/connectivity.service';
 
 const BACKGROUND_LOCATION_TASK = 'trans-allal-background-location';
-const PUBLISH_INTERVAL_MS = 5000; // 5 seconds
+
+// Publishing cadence: 5 s on iOS/Android (platform task minimum), 3 m / 5 s on web.
+// This gives near-real-time tracking (~5–10 s end-to-end latency including network).
+// If sub-second SLA is required, switch to a WebSocket streaming approach instead of
+// HTTP polling, and negotiate a lower timeInterval with the platform (iOS ignores
+// values below ~5 s in background mode; foreground can go to ~1 s).
+const PUBLISH_INTERVAL_MS = 5000;
 const WEB_DISTANCE_INTERVAL_M = 3;
 const STATIONARY_TOLERANCE_M = 20;
 

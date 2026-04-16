@@ -111,6 +111,22 @@
 - [ ] Add realtime tracking from mobile to backend and from backend to dashboard.
 - [ ] Add validation, tests, logging, monitoring, and deployment configuration.
 
+## Review Findings Backlog
+
+- [x] Fix dashboard websocket reconnect behavior in `dashboard-trans-allal/src/lib/api/realtime-client.ts` so company subscriptions are restored automatically after reconnect instead of being lost after network interruption.
+- [x] Stop `dashboard-trans-allal/src/app/(dashboard)/alerts/page.tsx` from disconnecting the shared realtime socket on page unmount; page cleanup must remove only its own listeners.
+- [x] Make mobile tracking session start/stop atomic in `app-trans-allal/src/screens/tracking/tracking-screen.tsx` so backend session state and local tracker state cannot drift apart on partial failures.
+- [x] Replace the placeholder tracking surface in `app-trans-allal/src/screens/tracking/tracking-screen.tsx` with a real map/current-location experience or an explicitly supported fallback.
+- [x] Review the live-tracking SLA and publishing strategy in `app-trans-allal/src/services/location/location-tracker.service.ts`; current location delivery runs on a 5-second cadence and is only near-real-time.
+- [x] Add full TypeORM migration support in `backend-trans-allal` with a real data source file, migration scripts, baseline migration, and run/revert workflow.
+- [x] Remove schema-management dependence on `synchronize` in `backend-trans-allal/src/database/database.module.ts` and use migrations as the only controlled schema evolution path.
+- [x] Isolate automated tests from the real local database; backend test runs must not mutate the main schema or apply implicit ALTER statements during startup.
+- [x] Add and verify telemetry-oriented database indexes for `driver_locations`, especially around `driverId`, `tripId`, and `recordedAt` access patterns used by tracking history and latest-location queries.
+- [x] Extend `backend-trans-allal/.env.example` and setup docs with the Firebase server configuration required for push delivery, including `FIREBASE_SERVICE_ACCOUNT_JSON`.
+- [x] Complete push notification support end-to-end across backend and mobile, including platform configuration validation instead of relying on a partial happy path.
+- [x] Unify notification behavior across dashboard and mobile so online/offline, alerts, and trip-assignment events follow one consistent subscription and display strategy.
+- [x] Fix backend e2e tests to assert the API success envelope `{ data, meta? }`, starting with `backend-trans-allal/test/app.e2e-spec.ts`.
+
 ## Notes for Claude Code Handoff
 
 - [x] The workspace is now scaffolded for implementation, not redesign.

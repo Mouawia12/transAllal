@@ -38,6 +38,8 @@ export type OnlineChangedEvent = {
 
 class RealtimeClient {
   private socket: Socket | null = null;
+  private activeCompanyId: string | null = null;
+  private activeDriverIds: Set<string> = new Set();
 
   connect(token: string): void {
     if (this.socket?.connected) return;
@@ -58,13 +60,28 @@ class RealtimeClient {
       randomizationFactor: 0.5,
       timeout: 20_000,
     });
+
+    // Re-subscribe to all active rooms after each reconnect so subscriptions
+    // are not lost on network interruptions.
+    this.socket.on("connect", () => {
+      if (this.activeCompanyId) {
+        this.socket?.emit("company.subscribe", {
+          companyId: this.activeCompanyId,
+        });
+      }
+      for (const driverId of this.activeDriverIds) {
+        this.socket?.emit("driver.subscribe", { driverId });
+      }
+    });
   }
 
   subscribeToCompany(companyId: string): void {
+    this.activeCompanyId = companyId;
     this.socket?.emit("company.subscribe", { companyId });
   }
 
   subscribeToDriver(driverId: string): void {
+    this.activeDriverIds.add(driverId);
     this.socket?.emit("driver.subscribe", { driverId });
   }
 
@@ -97,6 +114,8 @@ class RealtimeClient {
   }
 
   disconnect(): void {
+    this.activeCompanyId = null;
+    this.activeDriverIds.clear();
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
     this.socket = null;

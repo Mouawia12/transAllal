@@ -179,9 +179,11 @@ export default function AlertsPage() {
     realtimeClient.subscribeToCompany(companyId);
     realtimeClient.onAlert(handleAlert);
 
+    // Remove only this page's listener — do NOT call disconnect() here because
+    // the realtime socket is shared across pages. Disconnecting on unmount would
+    // drop subscriptions owned by other pages that are still mounted.
     return () => {
-      realtimeClient.offAlert();
-      realtimeClient.disconnect();
+      realtimeClient.offAlert(handleAlert);
     };
   }, [companyId, qc, readFilter, severityFilter, typeFilter]);
 

@@ -48,7 +48,10 @@ export default function RootLayout() {
     void registerPushToken();
   }, [accessToken, driverId]);
 
-  // Show local notification when a new trip is assigned via WebSocket
+  // Show local notification when a new trip is assigned via WebSocket (online path).
+  // The offline/background path is covered by FCM push notifications sent from the
+  // backend PushNotificationService — both paths use the same user-facing copy so
+  // the experience is consistent regardless of connectivity state.
   useEffect(() => {
     if (!accessToken) return;
     const unsubscribe = realtimeClient.onTripStatusChanged(async (data) => {
@@ -56,7 +59,25 @@ export default function RootLayout() {
         await showLocalNotification(
           'رحلة جديدة',
           'تم تعيين رحلة جديدة لك، افتح التطبيق للتفاصيل.',
-          { tripId: data.tripId },
+          { type: 'trip_assigned', tripId: data.tripId },
+        );
+      }
+    });
+    return unsubscribe;
+  }, [accessToken]);
+
+  // Show local notification for CRITICAL/HIGH alerts received while the app is
+  // in the foreground (online path). Lower-severity alerts are surfaced through
+  // the in-app alerts tab only.
+  useEffect(() => {
+    if (!accessToken) return;
+    const unsubscribe = realtimeClient.onAlert(async (data) => {
+      const alert = data as { alertId?: string; type?: string; severity?: string; message?: string | null };
+      if (alert.severity === 'CRITICAL' || alert.severity === 'HIGH') {
+        await showLocalNotification(
+          'تنبيه',
+          alert.message ?? `تنبيه من نوع ${alert.type ?? 'غير معروف'}`,
+          { type: 'alert', alertId: alert.alertId },
         );
       }
     });

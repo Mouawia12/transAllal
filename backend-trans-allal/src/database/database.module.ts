@@ -34,7 +34,9 @@ function resolveDatabaseType(
             url,
             entities: [__dirname + '/../**/*.entity{.ts,.js}'],
             autoLoadEntities: true,
-            synchronize: appEnv === 'development',
+            // Never auto-sync: schema changes must go through migrations.
+            // Run `npm run migration:run` before deploying.
+            synchronize: false,
             logging: appEnv === 'development',
             ssl:
               appEnv === 'production' ? { rejectUnauthorized: false } : false,
@@ -48,7 +50,8 @@ function resolveDatabaseType(
           url,
           entities: [__dirname + '/../**/*.entity{.ts,.js}'],
           autoLoadEntities: true,
-          synchronize: appEnv === 'development',
+          // Never auto-sync: schema changes must go through migrations.
+          synchronize: false,
           logging: appEnv === 'development',
         };
 

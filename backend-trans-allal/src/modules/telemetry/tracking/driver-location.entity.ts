@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -8,6 +9,12 @@ import {
 import { Driver } from '../../admin-business/drivers/driver.entity';
 import { Trip } from '../../admin-business/trips/trip.entity';
 
+// Composite indexes tuned for the two primary telemetry query patterns:
+//   1. Latest-location lookup:  WHERE driver_id = ? ORDER BY recorded_at DESC LIMIT 1
+//   2. Tracking history:        WHERE driver_id = ? AND recorded_at BETWEEN ? AND ?
+//   3. Trip replay:             WHERE trip_id = ? ORDER BY recorded_at ASC
+@Index('idx_driver_locations_driver_recorded', ['driverId', 'recordedAt'])
+@Index('idx_driver_locations_trip_recorded', ['tripId', 'recordedAt'])
 @Entity('driver_locations')
 export class DriverLocation {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })

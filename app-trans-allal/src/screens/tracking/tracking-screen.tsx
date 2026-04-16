@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, AppState, AppStateStatus, Pressable, StyleShe
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
+import type { LocationObject } from 'expo-location';
 import { apiClient } from '@/services/api/client';
 import { locationTracker } from '@/services/location/location-tracker.service';
 import { appColors } from '@/theme/colors';
@@ -26,6 +27,7 @@ export function TrackingScreen() {
   const [loading, setLoading] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [currentLocation, setCurrentLocation] = useState<LocationObject | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sync UI with real tracking state (call on mount + app foreground)
@@ -81,6 +83,16 @@ export function TrackingScreen() {
     };
   }, [sessionStartedAt, isOnline, startTimer]);
 
+  // Refresh the displayed position whenever the app is online
+  useEffect(() => {
+    if (!isOnline) return;
+    let cancelled = false;
+    locationTracker.getCurrentLocation()
+      .then((loc) => { if (!cancelled) setCurrentLocation(loc); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOnline]);
+
   async function handleGoOnline() {
     setLoading(true);
     try {
@@ -92,14 +104,28 @@ export function TrackingScreen() {
         );
         return;
       }
+
+      // Start backend session first, then start local tracker.
+      // If the local tracker fails we roll back the backend session so both
+      // sides stay in sync (atomicity: no state drift on partial failure).
       await apiClient('/tracking/session/start', { method: 'POST' });
-      await locationTracker.start();
+      try {
+        await locationTracker.start();
+      } catch (trackerErr) {
+        // Rollback: backend session must be stopped to match local state
+        try {
+          await apiClient('/tracking/session/stop', { method: 'POST' });
+        } catch {
+          // Rollback best-effort — syncState() will reconcile on next mount
+        }
+        throw trackerErr;
+      }
+
       const now = Date.now();
       await AsyncStorage.setItem(SESSION_STARTED_KEY, String(now));
       setSessionStartedAt(now);
       setIsOnline(true);
     } catch (err) {
-      // Show the user why it failed, then re-sync real state
       const message =
         err instanceof Error ? err.message : t('tracking.startFailed');
       Alert.alert(t('tracking.startFailedTitle'), message);
@@ -112,9 +138,17 @@ export function TrackingScreen() {
   async function handleGoOffline() {
     setLoading(true);
     try {
-      await locationTracker.stop();
+      // Stop backend session first, then stop local tracker.
+      // If the backend call fails the local tracker stays running so state
+      // remains consistent — re-sync on next open will surface the real state.
       await apiClient('/tracking/session/stop', { method: 'POST' });
+      try {
+        await locationTracker.stop();
+      } catch {
+        // Local stop failed — backend is already stopped; treat as offline
+      }
       await AsyncStorage.removeItem(SESSION_STARTED_KEY);
+      setCurrentLocation(null);
       setSessionStartedAt(null);
       setIsOnline(false);
     } catch (err) {
@@ -142,12 +176,28 @@ export function TrackingScreen() {
         </View>
       </View>
 
-      {/* Map placeholder */}
+      {/* Location display — explicit fallback until a map library is integrated */}
       <View style={styles.mapPlaceholder}>
         <Text style={styles.mapEmoji}>🗺</Text>
-        <Text style={styles.mapLabel}>
-          {t('tracking.title')}
-        </Text>
+        {currentLocation ? (
+          <>
+            <Text style={styles.coordLabel}>
+              {currentLocation.coords.latitude.toFixed(6)}°N
+            </Text>
+            <Text style={styles.coordLabel}>
+              {currentLocation.coords.longitude.toFixed(6)}°E
+            </Text>
+            {currentLocation.coords.accuracy != null ? (
+              <Text style={styles.coordAccuracy}>
+                ±{Math.round(currentLocation.coords.accuracy)}m
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.mapLabel}>
+            {t('tracking.title')}
+          </Text>
+        )}
       </View>
 
       {/* Toggle button */}
@@ -234,6 +284,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: appColors.light.muted,
     textAlign: 'center',
+  },
+  coordLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: appColors.light.text,
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+  },
+  coordAccuracy: {
+    fontSize: 12,
+    color: appColors.light.muted,
+    textAlign: 'center',
+    marginTop: 2,
   },
   toggleButton: {
     borderRadius: 14,

@@ -13,6 +13,8 @@ describe('HealthController (e2e)', () => {
   it('/api/v1/health (GET)', () => {
     const httpServer = app.getHttpServer() as Parameters<typeof request>[0];
 
+    // All successful responses from this API are wrapped in { data, meta? } by
+    // SuccessResponseInterceptor. Assert against the envelope, not the raw payload.
     return request(httpServer)
       .get('/api/v1/health')
       .expect(200)
@@ -21,14 +23,17 @@ describe('HealthController (e2e)', () => {
           body,
         }: {
           body: {
-            status: string;
-            communication: {
-              apiBaseUrl: string;
+            data: {
+              status: string;
+              communication: {
+                apiBaseUrl: string;
+              };
             };
           };
         }) => {
-          expect(body.status).toBe('ok');
-          expect(body.communication.apiBaseUrl).toContain('/api/v1');
+          expect(body.data).toBeDefined();
+          expect(body.data.status).toBe('ok');
+          expect(body.data.communication.apiBaseUrl).toContain('/api/v1');
         },
       );
   });

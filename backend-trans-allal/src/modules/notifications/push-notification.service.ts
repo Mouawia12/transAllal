@@ -22,11 +22,23 @@ export class PushNotificationService implements OnModuleInit {
     }
 
     try {
-      const serviceAccount = JSON.parse(serviceAccountJson) as admin.ServiceAccount;
+      const serviceAccount = JSON.parse(serviceAccountJson) as Record<string, unknown>;
+
+      // Validate required service-account fields before handing off to Firebase
+      // so misconfiguration fails loudly at startup rather than silently at
+      // the first send attempt.
+      const required = ['type', 'project_id', 'private_key', 'client_email'] as const;
+      const missing = required.filter((key) => !serviceAccount[key]);
+      if (missing.length > 0) {
+        this.logger.error(
+          `FIREBASE_SERVICE_ACCOUNT_JSON is missing required fields: ${missing.join(', ')} — push notifications disabled`,
+        );
+        return;
+      }
 
       if (!admin.apps.length) {
         admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
+          credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
         });
       }
 
