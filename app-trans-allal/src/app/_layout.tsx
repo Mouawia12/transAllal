@@ -59,6 +59,18 @@ export default function RootLayout() {
     let cancelled = false;
     const isActive = appState === 'active';
 
+    if (!isActive) {
+      realtimeClient.disconnect();
+      return;
+    }
+
+    // Connect (or force-reconnect to recover from silent drops) immediately so
+    // the WebSocket is up while the tracking-restore async work runs in parallel.
+    realtimeClient.forceReconnect();
+    if (driverId) {
+      realtimeClient.subscribeToDriver(driverId);
+    }
+
     void (async () => {
       const restored = await locationTracker.restoreBackgroundTracking();
       if (cancelled) {
@@ -66,23 +78,12 @@ export default function RootLayout() {
       }
 
       if (restored) {
-        await locationTracker.syncRuntimeMode(
-          isActive ? 'foreground' : 'background',
-        );
+        await locationTracker.syncRuntimeMode('foreground');
         if (cancelled) {
           return;
         }
       }
 
-      if (!isActive) {
-        realtimeClient.disconnect();
-        return;
-      }
-
-      realtimeClient.connect(accessToken);
-      if (driverId) {
-        realtimeClient.subscribeToDriver(driverId);
-      }
       await registerPushToken();
     })();
 
@@ -151,9 +152,9 @@ export default function RootLayout() {
   return (
     <I18nextProvider i18n={i18n}>
       <ThemeProvider value={navigationTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)/sign-in" />
+        <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+          <Stack.Screen name="index" options={{ animation: 'fade' }} />
+          <Stack.Screen name="(auth)/sign-in" options={{ animation: 'fade' }} />
           <Stack.Screen name="(driver)" />
         </Stack>
         <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

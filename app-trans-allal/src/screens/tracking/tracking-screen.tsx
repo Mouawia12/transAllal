@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, AppStateStatus, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, AppState, AppStateStatus, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from 'expo-router';
 import type { LocationObject } from 'expo-location';
 import { apiClient } from '@/services/api/client';
 import { locationTracker } from '@/services/location/location-tracker.service';
@@ -29,6 +30,20 @@ export function TrackingScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [currentLocation, setCurrentLocation] = useState<LocationObject | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(20);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 320, useNativeDriver: true }),
+      ]).start();
+    }, [fadeAnim, slideAnim]),
+  );
 
   // Sync UI with real tracking state (call on mount + app foreground)
   const syncState = useCallback(async () => {
@@ -174,7 +189,7 @@ export function TrackingScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top + 8, 20) }]}>
+    <Animated.View style={[styles.container, { paddingTop: Math.max(insets.top + 8, 20), opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
       {/* Status indicator */}
       <View style={styles.statusRow}>
         <View style={[styles.dot, isOnline ? styles.dotOnline : styles.dotOffline]} />
@@ -230,7 +245,7 @@ export function TrackingScreen() {
           </Text>
         )}
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 

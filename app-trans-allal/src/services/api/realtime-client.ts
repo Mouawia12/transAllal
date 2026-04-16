@@ -12,21 +12,33 @@ const WsEvents = {
 } as const;
 
 let socket: Socket | null = null;
+let currentToken: string | null = null;
 let trackedDriverId: string | null = null;
 const tripStatusChangedListeners = new Set<
   (data: { tripId: string; status: string }) => void
 >();
 const alertListeners = new Set<(data: unknown) => void>();
+const connectionListeners = new Set<(connected: boolean) => void>();
+
+function notifyConnectionChange(connected: boolean) {
+  for (const listener of connectionListeners) {
+    listener(connected);
+  }
+}
 
 export const realtimeClient = {
   connect(token: string): void {
     if (socket?.connected) return;
 
+    // If socket exists but is disconnected/reconnecting, fully reset it so the
+    // new connection uses the latest token and a fresh event-listener set.
     if (socket) {
       socket.removeAllListeners();
       socket.disconnect();
       socket = null;
     }
+
+    currentToken = token;
 
     socket = io(`${apiConfig.websocketUrl}/tracking`, {
       auth: { token },
@@ -34,13 +46,16 @@ export const realtimeClient = {
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 30_000,
+      reconnectionDelayMax: 15_000,
       randomizationFactor: 0.5,
-      timeout: 20_000,
+      // Fail the initial connection attempt faster; the built-in reconnect loop
+      // will retry with back-off, so a short timeout just speeds up recovery.
+      timeout: 10_000,
     });
 
     socket.on('connect', () => {
       console.log('[WS] Connected');
+      notifyConnectionChange(true);
       if (trackedDriverId) {
         socket?.emit(WsEvents.DRIVER_SUBSCRIBE, { driverId: trackedDriverId });
       }
@@ -48,6 +63,7 @@ export const realtimeClient = {
 
     socket.on('disconnect', (reason) => {
       console.log('[WS] Disconnected:', reason);
+      notifyConnectionChange(false);
     });
 
     socket.on('connect_error', (err) => {
@@ -65,6 +81,24 @@ export const realtimeClient = {
         listener(data);
       }
     });
+  },
+
+  /**
+   * Force-reconnect even if the socket thinks it is already connected.
+   * Call this when the app returns to the foreground to recover from silent
+   * disconnects (e.g. network switch, carrier-level NAT timeout).
+   */
+  forceReconnect(): void {
+    if (!currentToken) return;
+    if (socket) {
+      socket.removeAllListeners();
+      socket.disconnect();
+      socket = null;
+    }
+    this.connect(currentToken);
+    if (trackedDriverId) {
+      this.subscribeToDriver(trackedDriverId);
+    }
   },
 
   subscribeToDriver(driverId: string): void {
@@ -101,11 +135,21 @@ export const realtimeClient = {
     };
   },
 
+  /** Subscribe to WebSocket connection state changes (true = connected). */
+  onConnectionChange(cb: (connected: boolean) => void): () => void {
+    connectionListeners.add(cb);
+    return () => {
+      connectionListeners.delete(cb);
+    };
+  },
+
   disconnect(): void {
+    currentToken = null;
     trackedDriverId = null;
     socket?.removeAllListeners();
     socket?.disconnect();
     socket = null;
+    notifyConnectionChange(false);
   },
 
   isConnected(): boolean {

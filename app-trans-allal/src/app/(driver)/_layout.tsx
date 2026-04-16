@@ -39,10 +39,10 @@ export default function DriverStackLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="setup" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="settings" />
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
+      <Stack.Screen name="setup" options={{ animation: 'fade' }} />
+      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+      <Stack.Screen name="settings" options={{ animation: 'slide_from_bottom' }} />
     </Stack>
   );
 }

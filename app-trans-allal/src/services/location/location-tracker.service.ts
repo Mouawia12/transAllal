@@ -393,7 +393,12 @@ export const locationTracker = {
 
   async isTracking(): Promise<boolean> {
     if (Platform.OS === 'web') return webLocationSubscription !== null;
-    return hasStartedNativeTracking();
+    // Intent-based: return true if the driver intentionally enabled tracking.
+    // hasStartedNativeTracking() can briefly return false during foreground/background
+    // transitions (race with the OS task manager). The driver's intent is persisted
+    // reliably in AsyncStorage; restoreBackgroundTracking() handles restarting the
+    // native task if needed when the app returns to the foreground.
+    return isTrackingEnabled();
   },
 
   async syncRuntimeMode(mode: TrackingRuntimeMode): Promise<boolean> {

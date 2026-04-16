@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   ActivityIndicator,
   AppState,
   AppStateStatus,
@@ -39,6 +40,20 @@ export function TripScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(20);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 320, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 320, useNativeDriver: true }),
+      ]).start();
+    }, [fadeAnim, slideAnim]),
+  );
 
   const load = useCallback(async () => {
     try {
@@ -102,6 +117,7 @@ export function TripScreen() {
   }
 
   return (
+    <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
     <FlatList
       style={styles.container}
       contentContainerStyle={[
@@ -139,6 +155,7 @@ export function TripScreen() {
         />
       )}
     />
+    </Animated.View>
   );
 }
 
