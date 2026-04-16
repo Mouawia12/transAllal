@@ -13,6 +13,10 @@ Notifications.setNotificationHandler({
 });
 
 async function requestPermission(): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return false;
+  }
+
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
@@ -26,6 +30,10 @@ async function requestPermission(): Promise<boolean> {
 
 export async function registerPushToken(): Promise<void> {
   try {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
     const granted = await requestPermission();
     if (!granted) return;
 

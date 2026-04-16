@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { apiClient, ApiError } from '../api/client';
 import {
   clearAuthRedirectReason,
+  type AuthRedirectReason,
   persistAuthRedirectReason,
 } from './navigation';
 import { queryClient } from '../query-client';
@@ -16,6 +17,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
+  clearLocalSession: (reason?: AuthRedirectReason) => void;
 }
 
 let hydrateRequest: Promise<void> | null = null;
@@ -118,6 +120,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     tokenStore.clear();
     queryClient.clear();
     set({ user: null, hasHydrated: true, authRestoreFailed: false });
+  },
+
+  clearLocalSession: (reason = 'session-expired') => {
+    persistAuthRedirectReason(reason);
+    tokenStore.clear();
+    queryClient.clear();
+    set({
+      user: null,
+      isLoading: false,
+      hasHydrated: true,
+      authRestoreFailed: false,
+    });
   },
 
   hydrate: async () => {

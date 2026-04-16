@@ -23,6 +23,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((state) => state.user);
   const authRestoreFailed = useAuthStore((state) => state.authRestoreFailed);
   const hydrate = useAuthStore((state) => state.hydrate);
+  const clearLocalSession = useAuthStore((state) => state.clearLocalSession);
   const [isRetrying, setIsRetrying] = useState(false);
   const hasAccessToken =
     typeof window !== 'undefined' ? Boolean(tokenStore.getAccessToken()) : true;
@@ -72,20 +73,34 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             description={t('dashboard_shell.restore_failed_description')}
           />
           <div className="mt-5 flex justify-center">
-            <ManagementActionButton
-              size="md"
-              loading={isRetrying}
-              onClick={async () => {
-                setIsRetrying(true);
-                try {
-                  await hydrate();
-                } finally {
-                  setIsRetrying(false);
-                }
-              }}
-            >
-              {t('dashboard_shell.restore_retry')}
-            </ManagementActionButton>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <ManagementActionButton
+                size="md"
+                loading={isRetrying}
+                onClick={async () => {
+                  setIsRetrying(true);
+                  try {
+                    await hydrate();
+                  } finally {
+                    setIsRetrying(false);
+                  }
+                }}
+              >
+                {t('dashboard_shell.restore_retry')}
+              </ManagementActionButton>
+              <ManagementActionButton
+                size="md"
+                tone="neutral"
+                onClick={() => {
+                  clearLocalSession('session-expired');
+                  router.replace(
+                    buildSignInHref(getCurrentAppPath(), 'session-expired'),
+                  );
+                }}
+              >
+                {t('dashboard_shell.restore_sign_in')}
+              </ManagementActionButton>
+            </div>
           </div>
         </div>
       </div>

@@ -194,6 +194,7 @@
     "restore_failed_title": "Unable to restore the session right now",
     "restore_failed_description": "The app could not reach your session data at the moment. Check the connection and try again without being signed out immediately.",
     "restore_retry": "Try again",
+    "restore_sign_in": "Clear session and sign in",
     "redirect_title": "Redirecting to sign in",
     "redirect_description": "Your session is no longer available, so the dashboard is sending you back to the access screen.",
     "secure_session": "Secure session",
