@@ -41,7 +41,7 @@ function TopbarIconButton({
     <button
       type="button"
       className={cn(
-        'inline-flex h-10 w-10 items-center justify-center rounded-2xl border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none',
+        'inline-flex h-11 w-11 items-center justify-center rounded-2xl border shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none sm:h-10 sm:w-10',
         className,
       )}
       {...props}
@@ -141,8 +141,8 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
 
   return (
     <header className="sticky top-0 z-20 rounded-[24px] border border-[var(--color-border)] bg-[var(--color-panel-strong)] px-3 py-2.5 shadow-[0_18px_45px_rgba(23,18,14,0.08)] backdrop-blur md:rounded-[26px] md:px-3.5 md:py-3">
-      <div className="flex flex-wrap items-center gap-2.5 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex flex-col gap-2.5 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_auto] xl:items-center">
+        <div className="flex min-w-0 items-center gap-2">
           <TopbarIconButton
             onClick={onToggleSidebar}
             className="border-[var(--color-border)] bg-white/72 text-[var(--color-muted)] hover:bg-white"
@@ -171,13 +171,13 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
               size={44}
               className="rounded-2xl border-[var(--color-border)] bg-white shadow-none"
             />
-            <span className="hidden text-sm font-semibold tracking-tight text-[var(--color-ink)] md:inline">
+            <span className="hidden text-sm font-semibold tracking-tight text-[var(--color-ink)] sm:inline">
               Trans Allal
             </span>
           </div>
 
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight text-[var(--color-ink)] md:text-xl">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold tracking-tight text-[var(--color-ink)] sm:text-lg md:text-xl">
               {tNav(currentSection as Parameters<typeof tNav>[0])}
             </h1>
           </div>
@@ -207,9 +207,10 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
           </span>
         </div>
 
-        <CompanySwitcher compact className="min-w-0 flex-1 xl:w-[260px] xl:flex-none" />
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between xl:justify-end">
+          <CompanySwitcher compact className="w-full min-w-0 sm:max-w-[320px] xl:w-[260px] xl:flex-none" />
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {/* Notification bell */}
           <div ref={notifRef} className="relative">
             <TopbarIconButton
@@ -230,7 +231,7 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
             </TopbarIconButton>
 
             {isNotifOpen && (
-              <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-80 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[0_8px_32px_rgba(23,18,14,0.12)]">
+              <div className="absolute left-0 top-[calc(100%+8px)] z-30 w-[min(calc(100vw-2.5rem),22rem)] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[0_8px_32px_rgba(23,18,14,0.12)] sm:left-auto sm:right-0 sm:w-80">
                 <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
                   <span className="text-sm font-semibold text-[var(--color-ink)]">
                     {t('dashboard_shell.notifications')}
@@ -290,7 +291,7 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
               <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-[rgba(12,107,88,0.08)] text-sm font-semibold text-[var(--color-brand)]">
                 {initials || <UserCircle2 size={15} />}
               </div>
-              <span className="hidden max-w-[110px] truncate text-sm font-medium text-[var(--color-ink)] lg:inline">
+              <span className="hidden max-w-[110px] truncate text-sm font-medium text-[var(--color-ink)] md:inline">
                 {user.firstName}
               </span>
             </div>
@@ -319,6 +320,7 @@ export function Topbar({ isSidebarOpen, onToggleSidebar, notifications, onMarkAl
               <LogOut size={18} strokeWidth={2.2} />
             )}
           </TopbarIconButton>
+          </div>
         </div>
       </div>
     </header>

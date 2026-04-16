@@ -256,20 +256,20 @@ export default function OverviewPage() {
           return (
             <ManagementSurfaceCard
               key={card.label}
-              className="rounded-[26px] bg-[linear-gradient(180deg,var(--color-panel-strong)_0%,rgba(255,255,255,0.72)_100%)] p-5 shadow-[var(--shadow-panel)]"
+              className="rounded-[26px] bg-[linear-gradient(180deg,var(--color-panel-strong)_0%,rgba(255,255,255,0.72)_100%)] p-4 shadow-[var(--shadow-panel)] sm:p-5"
             >
               <div className="flex items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--color-brand)]">
                     {card.label}
                   </p>
-                  <p className="mt-4 text-4xl font-semibold tracking-tight text-[var(--color-ink)]">
+                  <p className="mt-3 text-[2rem] font-semibold tracking-tight text-[var(--color-ink)] sm:mt-4 sm:text-4xl">
                     {card.value}
                   </p>
                 </div>
                 <div
                   className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-2xl",
+                    "flex h-11 w-11 items-center justify-center rounded-2xl sm:h-12 sm:w-12",
                     card.iconTone,
                   )}
                 >
@@ -306,7 +306,7 @@ export default function OverviewPage() {
               recentTrips.map((trip) => (
                 <ManagementSurfaceCard
                   key={trip.id}
-                  className="flex items-start justify-between gap-4 rounded-2xl bg-white/70 px-4 py-4"
+                  className="flex flex-col gap-3 rounded-2xl bg-white/70 px-4 py-4 sm:flex-row sm:items-start sm:justify-between"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-ink)]">
@@ -325,7 +325,7 @@ export default function OverviewPage() {
                     label={t(
                       `status_values.${trip.status}` as Parameters<typeof t>[0],
                     )}
-                    toneClassName={cn("shrink-0", statusTone(trip.status))}
+                    toneClassName={cn("self-start shrink-0", statusTone(trip.status))}
                   />
                 </ManagementSurfaceCard>
               ))
@@ -357,7 +357,7 @@ export default function OverviewPage() {
               recentAlerts.map((alert) => (
                 <ManagementSurfaceCard
                   key={alert.id}
-                  className="flex items-start justify-between gap-4 rounded-2xl bg-white/70 px-4 py-4"
+                  className="flex flex-col gap-3 rounded-2xl bg-white/70 px-4 py-4 sm:flex-row sm:items-start sm:justify-between"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-ink)]">
@@ -379,7 +379,7 @@ export default function OverviewPage() {
                     label={t(
                       `severity.${alert.severity}` as Parameters<typeof t>[0],
                     )}
-                    toneClassName={cn("shrink-0", severityTone(alert.severity))}
+                    toneClassName={cn("self-start shrink-0", severityTone(alert.severity))}
                   />
                 </ManagementSurfaceCard>
               ))

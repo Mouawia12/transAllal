@@ -11,6 +11,7 @@ import {
   Settings,
   Truck,
   Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -84,7 +85,15 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar({ onHide }: { onHide: () => void }) {
+export function Sidebar({
+  onHide,
+  onNavigate,
+  mobile = false,
+}: {
+  onHide: () => void;
+  onNavigate?: () => void;
+  mobile?: boolean;
+}) {
   const pathname = usePathname();
   const t = useTranslations();
   const tNav = useTranslations("nav");
@@ -98,7 +107,12 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
   return (
     <aside
       id="dashboard-sidebar"
-      className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#101d21_0%,#10312f_55%,#0d2626_100%)] text-white shadow-[var(--shadow-elevated)] lg:sticky lg:top-0 lg:h-full lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:rounded-[30px]"
+      className={cn(
+        "relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,#101d21_0%,#10312f_55%,#0d2626_100%)] text-white shadow-[var(--shadow-elevated)]",
+        mobile
+          ? "h-full rounded-[30px]"
+          : "lg:sticky lg:top-0 lg:h-full lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:rounded-[30px]",
+      )}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.14),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_38%)]" />
 
@@ -115,7 +129,7 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
               aria-label={t("dashboard_shell.hide_sidebar")}
               title={t("dashboard_shell.hide_sidebar")}
             >
-              <ChevronsRight size={16} />
+              {mobile ? <X size={16} /> : <ChevronsRight size={16} />}
             </button>
           </div>
           <div className="mt-2 flex items-start gap-3 lg:mt-2.5">
@@ -128,7 +142,7 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
               <h2 className="text-[1.45rem] font-semibold tracking-tight text-white lg:text-[1.65rem]">
                 Trans Allal
               </h2>
-              <p className="mt-1 hidden line-clamp-2 text-sm leading-6 text-white/65 sm:block">
+              <p className="mt-1 line-clamp-2 text-sm leading-6 text-white/65">
                 {t("dashboard_shell.sidebar_summary")}
               </p>
             </div>
@@ -140,11 +154,11 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
           ) : null}
         </div>
 
-        <div className="mt-3 min-h-0 lg:mt-4 lg:flex-1 lg:overflow-y-auto">
-          <p className="hidden px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45 lg:block">
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto lg:mt-4">
+          <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">
             {t("dashboard_shell.navigation")}
           </p>
-          <nav className="flex gap-2 overflow-x-auto pb-1 lg:mt-2.5 lg:block lg:space-y-1.5 lg:overflow-visible lg:pb-0">
+          <nav className="mt-2.5 space-y-1.5 pb-1">
             {visibleItems.map(({ key, href, icon: Icon }) => {
               const active =
                 href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -152,8 +166,9 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
                 <Link
                   key={key}
                   href={href}
+                  onClick={onNavigate}
                   className={cn(
-                    "group relative flex shrink-0 items-center gap-2.5 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:bg-white/12 motion-reduce:transition-none lg:gap-3",
+                    "group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:bg-white/12 motion-reduce:transition-none",
                     active
                       ? "border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.12)_0%,rgba(12,107,88,0.24)_100%)] text-white shadow-[0_16px_30px_rgba(0,0,0,0.18)]"
                       : "border border-transparent text-white/72 hover:bg-white/8 hover:text-white",
@@ -182,7 +197,7 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
                     </span>
                     <span
                       className={cn(
-                        "hidden h-2.5 w-2.5 rounded-full transition-opacity lg:block",
+                        "h-2.5 w-2.5 rounded-full transition-opacity",
                         active
                           ? "bg-emerald-300 opacity-100"
                           : "bg-white/20 opacity-0 group-hover:opacity-100",
@@ -195,7 +210,12 @@ export function Sidebar({ onHide }: { onHide: () => void }) {
           </nav>
         </div>
 
-        <div className="mt-3 hidden rounded-[24px] border border-white/10 bg-black/12 p-3.5 lg:block">
+        <div
+          className={cn(
+            "mt-3 rounded-[24px] border border-white/10 bg-black/12 p-3.5",
+            mobile ? "block" : "hidden lg:block",
+          )}
+        >
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/45">
             {t("dashboard_shell.session")}
           </p>

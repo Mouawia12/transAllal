@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Sidebar } from './sidebar';
 import { Topbar } from './topbar';
 import { cn } from '../../lib/utils/cn';
@@ -16,6 +16,56 @@ import type { ApiResponse, Driver } from '../../types/shared';
 
 const SIDEBAR_STORAGE_KEY = 'trans-allal:dashboard-sidebar-open';
 const NOTIFICATIONS_STORAGE_KEY = 'trans-allal:dashboard-notifications:v1';
+
+function readInitialDesktopSidebarPreference() {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) !== '0';
+}
+
+function readInitialDesktopViewport() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.matchMedia('(min-width: 1024px)').matches;
+}
+
+function readStoredNotifications(): DashboardNotification[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const storedNotifications = window.localStorage.getItem(
+      NOTIFICATIONS_STORAGE_KEY,
+    );
+    if (!storedNotifications) {
+      return [];
+    }
+
+    const parsedNotifications = JSON.parse(storedNotifications) as Array<
+      Omit<DashboardNotification, 'at'> & { at: string }
+    >;
+
+    if (!Array.isArray(parsedNotifications)) {
+      return [];
+    }
+
+    return parsedNotifications
+      .filter((item) => item && typeof item.id === 'string')
+      .map((item) => ({
+        ...item,
+        at: new Date(item.at),
+      }))
+      .slice(0, 20);
+  } catch {
+    window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
+    return [];
+  }
+}
 
 export type DashboardNotification = {
   id: string;
@@ -32,57 +82,74 @@ export type DashboardNotification = {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const locale = useLocale();
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(
+    readInitialDesktopSidebarPreference,
+  );
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(
+    readInitialDesktopViewport,
+  );
   const [notifications, setNotifications] = useState<DashboardNotification[]>(
-    [],
+    readStoredNotifications,
   );
   const { companyId } = useCompanyScope();
   const qc = useQueryClient();
+  const isRtl = locale === 'ar';
+  const isSidebarOpen = isDesktopViewport
+    ? isDesktopSidebarOpen
+    : isMobileSidebarOpen;
 
   useEffect(() => {
-    const storedPreference = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
-    if (storedPreference === '0') {
-      setIsSidebarOpen(false);
-    }
-  }, []);
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
 
-  useEffect(() => {
-    try {
-      const storedNotifications = window.localStorage.getItem(
-        NOTIFICATIONS_STORAGE_KEY,
-      );
-      if (!storedNotifications) {
-        return;
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      setIsDesktopViewport(event.matches);
+
+      if (event.matches) {
+        setIsMobileSidebarOpen(false);
       }
+    };
 
-      const parsedNotifications = JSON.parse(storedNotifications) as Array<
-        Omit<DashboardNotification, 'at'> & { at: string }
-      >;
+    mediaQuery.addEventListener('change', handleViewportChange);
 
-      if (!Array.isArray(parsedNotifications)) {
-        return;
-      }
-
-      setNotifications(
-        parsedNotifications
-          .filter((item) => item && typeof item.id === 'string')
-          .map((item) => ({
-            ...item,
-            at: new Date(item.at),
-          }))
-          .slice(0, 20),
-      );
-    } catch {
-      window.localStorage.removeItem(NOTIFICATIONS_STORAGE_KEY);
-    }
+    return () => mediaQuery.removeEventListener('change', handleViewportChange);
   }, []);
 
   useEffect(() => {
     window.localStorage.setItem(
       SIDEBAR_STORAGE_KEY,
-      isSidebarOpen ? '1' : '0',
+      isDesktopSidebarOpen ? '1' : '0',
     );
-  }, [isSidebarOpen]);
+  }, [isDesktopSidebarOpen]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || isDesktopViewport) {
+      return;
+    }
+
+    document.body.style.overflow = isMobileSidebarOpen ? 'hidden' : '';
+
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isDesktopViewport, isMobileSidebarOpen]);
+
+  useEffect(() => {
+    if (!isMobileSidebarOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileSidebarOpen]);
 
   useEffect(() => {
     const serializableNotifications = notifications.slice(0, 20).map((item) => ({
@@ -111,6 +178,24 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const handleMarkAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
+
+  const handleToggleSidebar = useCallback(() => {
+    if (isDesktopViewport) {
+      setIsDesktopSidebarOpen((current) => !current);
+      return;
+    }
+
+    setIsMobileSidebarOpen((current) => !current);
+  }, [isDesktopViewport]);
+
+  const handleHideSidebar = useCallback(() => {
+    if (isDesktopViewport) {
+      setIsDesktopSidebarOpen(false);
+      return;
+    }
+
+    setIsMobileSidebarOpen(false);
+  }, [isDesktopViewport]);
 
   const pushNotification = useCallback(
     ({
@@ -289,18 +374,50 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           'relative mx-auto grid max-w-[1600px] gap-2.5 lg:h-[calc(100dvh-2rem)] lg:gap-3',
-          isSidebarOpen
+          isDesktopSidebarOpen
             ? 'lg:grid-cols-[280px_minmax(0,1fr)]'
             : 'lg:grid-cols-[minmax(0,1fr)]',
         )}
       >
-        {isSidebarOpen ? (
-          <Sidebar onHide={() => setIsSidebarOpen(false)} />
+        {isDesktopSidebarOpen ? (
+          <Sidebar onHide={handleHideSidebar} />
         ) : null}
+
+        <div
+          className={cn(
+            'fixed inset-0 z-40 bg-[rgba(15,23,42,0.42)] backdrop-blur-sm transition duration-300 lg:hidden',
+            isMobileSidebarOpen
+              ? 'pointer-events-auto opacity-100'
+              : 'pointer-events-none opacity-0',
+          )}
+          aria-hidden={!isMobileSidebarOpen}
+          onClick={handleHideSidebar}
+        />
+
+        <div
+          className={cn(
+            'fixed inset-y-0 z-50 w-[min(86vw,22rem)] p-3 transition duration-300 ease-out lg:hidden',
+            isRtl ? 'right-0' : 'left-0',
+            isMobileSidebarOpen
+              ? 'pointer-events-auto translate-x-0 opacity-100'
+              : cn(
+                  'pointer-events-none opacity-0',
+                  isRtl ? 'translate-x-[108%]' : '-translate-x-[108%]',
+                ),
+          )}
+          aria-hidden={!isMobileSidebarOpen}
+        >
+          <Sidebar
+            mobile
+            onHide={handleHideSidebar}
+            onNavigate={() => setIsMobileSidebarOpen(false)}
+          />
+        </div>
+
         <div className="flex min-h-0 flex-col overflow-hidden rounded-[26px] border border-[var(--color-border)] bg-[var(--color-panel-muted)] p-2.5 shadow-[var(--shadow-elevated)] backdrop-blur sm:rounded-[28px] sm:p-3 md:rounded-[30px] md:p-4 lg:h-full">
           <Topbar
             isSidebarOpen={isSidebarOpen}
-            onToggleSidebar={() => setIsSidebarOpen((current) => !current)}
+            onToggleSidebar={handleToggleSidebar}
             notifications={notifications}
             onMarkAllRead={handleMarkAllRead}
           />
