@@ -62,10 +62,11 @@ class RealtimeClient {
 
     this.socket = io(resolveTrackingUrl(WS_URL), {
       auth: { token },
-      // Allow polling fallback when a reverse proxy does not forward WebSocket
-      // upgrades correctly. Socket.IO will still upgrade to WebSocket when the
-      // path supports it.
-      transports: ["polling", "websocket"],
+      // Production currently serves Socket.IO polling successfully but the
+      // reverse proxy still breaks WebSocket upgrades. Force polling so live
+      // dashboard notifications remain reliable until the proxy is fixed.
+      transports: ["polling"],
+      upgrade: false,
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
