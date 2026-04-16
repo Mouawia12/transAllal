@@ -1,12 +1,14 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { createApplication } from '../src/bootstrap';
+import { createTestApplication } from './create-test-app';
 
 describe('HealthController (e2e)', () => {
   let app: INestApplication;
 
   beforeEach(async () => {
-    app = await createApplication();
+    // createTestApplication() uses a database-free module so the test never
+    // touches the real DB or applies implicit schema changes.
+    app = await createTestApplication();
     await app.init();
   });
 

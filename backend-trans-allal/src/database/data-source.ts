@@ -1,22 +1,28 @@
 /**
- * Standalone TypeORM DataSource used by the TypeORM CLI for generating and
- * running migrations. The application itself uses DatabaseModule (TypeOrmModule)
- * to connect at runtime; this file is only for CLI operations:
+ * Standalone TypeORM DataSource for the TypeORM CLI.
+ * Used for generating and running migrations — NOT used at runtime
+ * (the app uses DatabaseModule / TypeOrmModule instead).
  *
- *   npm run migration:generate -- src/database/migrations/MigrationName
- *   npm run migration:run
- *   npm run migration:revert
+ * Usage:
+ *   npm run migration:run            # apply all pending migrations
+ *   npm run migration:revert         # revert the latest migration
+ *   npm run migration:generate -- src/database/migrations/MyChange
+ *   npm run migration:show           # list applied / pending migrations
  *
- * Reads the same DATABASE_URL env var as the rest of the app.
- * Load a .env file before running if you are not exporting the variable:
- *   DATABASE_URL=... npm run migration:run
+ * Set DATABASE_URL before running, or create a .env file in the backend root:
+ *   DATABASE_URL=mysql://user:pass@localhost:3306/trans-allal-db npm run migration:run
  */
 
 import 'reflect-metadata';
-import * as dotenv from 'dotenv';
 import { DataSource } from 'typeorm';
 
-dotenv.config();
+// Load .env if available (dotenv is a transitive dep of @nestjs/config)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('dotenv').config();
+} catch {
+  // dotenv unavailable — rely on process.env being pre-populated
+}
 
 const databaseUrl =
   process.env.DATABASE_URL ??

@@ -138,15 +138,27 @@ export function TrackingScreen() {
   async function handleGoOffline() {
     setLoading(true);
     try {
-      // Stop backend session first, then stop local tracker.
-      // If the backend call fails the local tracker stays running so state
-      // remains consistent — re-sync on next open will surface the real state.
-      await apiClient('/tracking/session/stop', { method: 'POST' });
+      // Stop local tracker FIRST. If it fails, the backend session is still
+      // running — no drift (both sides agree: online). Only proceed to stop
+      // the backend once the local tracker has cleanly stopped.
+      await locationTracker.stop();
+
+      // Local tracker stopped. Now stop the backend session.
       try {
-        await locationTracker.stop();
-      } catch {
-        // Local stop failed — backend is already stopped; treat as offline
+        await apiClient('/tracking/session/stop', { method: 'POST' });
+      } catch (apiErr) {
+        // Backend stop failed but local tracker is already stopped.
+        // Rollback: restart the local tracker so both sides stay in sync.
+        // Best-effort — if this also fails, syncState() will reconcile on
+        // the next foreground transition.
+        try {
+          await locationTracker.start();
+        } catch {
+          // Rollback best-effort
+        }
+        throw apiErr;
       }
+
       await AsyncStorage.removeItem(SESSION_STARTED_KEY);
       setCurrentLocation(null);
       setSessionStartedAt(null);
