@@ -7,6 +7,7 @@ const WsEvents = {
   ALERT_RAISED: 'alert.raised',
   TRIP_STATUS_CHANGED: 'trip.status.changed',
   DRIVER_ONLINE_CHANGED: 'driver.online.changed',
+  DRIVER_SESSION_STOPPED: 'driver.session.stopped',
   COMPANY_SUBSCRIBE: 'company.subscribe',
   DRIVER_SUBSCRIBE: 'driver.subscribe',
 } as const;
@@ -18,6 +19,9 @@ const tripStatusChangedListeners = new Set<
   (data: { tripId: string; status: string }) => void
 >();
 const alertListeners = new Set<(data: unknown) => void>();
+const sessionStoppedListeners = new Set<
+  (data: { driverId: string; reason: 'DASHBOARD' | 'SESSION_INACTIVE' }) => void
+>();
 const connectionListeners = new Set<(connected: boolean) => void>();
 
 function notifyConnectionChange(connected: boolean) {
@@ -81,6 +85,17 @@ export const realtimeClient = {
         listener(data);
       }
     });
+
+    socket.on(WsEvents.DRIVER_SESSION_STOPPED, (data) => {
+      for (const listener of sessionStoppedListeners) {
+        listener(
+          data as {
+            driverId: string;
+            reason: 'DASHBOARD' | 'SESSION_INACTIVE';
+          },
+        );
+      }
+    });
   },
 
   /**
@@ -132,6 +147,15 @@ export const realtimeClient = {
     alertListeners.add(cb);
     return () => {
       alertListeners.delete(cb);
+    };
+  },
+
+  onSessionStopped(
+    cb: (data: { driverId: string; reason: 'DASHBOARD' | 'SESSION_INACTIVE' }) => void,
+  ): () => void {
+    sessionStoppedListeners.add(cb);
+    return () => {
+      sessionStoppedListeners.delete(cb);
     };
   },
 

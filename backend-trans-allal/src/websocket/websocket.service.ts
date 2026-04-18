@@ -105,14 +105,12 @@ export class WebsocketService {
       occurredAt: payload.occurredAt,
     };
 
-    this.server.to(`driver:${payload.driverId}`).emit(
-      WsEvents.TRIP_STATUS_CHANGED,
-      event,
-    );
-    this.server.to(`company:${payload.companyId}`).emit(
-      WsEvents.TRIP_STATUS_CHANGED,
-      event,
-    );
+    this.server
+      .to(`driver:${payload.driverId}`)
+      .emit(WsEvents.TRIP_STATUS_CHANGED, event);
+    this.server
+      .to(`company:${payload.companyId}`)
+      .emit(WsEvents.TRIP_STATUS_CHANGED, event);
   }
 
   emitDriverLocation(location: {
@@ -149,6 +147,23 @@ export class WebsocketService {
     this.server
       .to(`driver:${location.driverId}`)
       .emit(WsEvents.DRIVER_LOCATION_UPDATED, payload);
+  }
+
+  emitDriverSessionStopped(payload: {
+    driverId: string;
+    companyId: string;
+    reason: 'DASHBOARD' | 'SESSION_INACTIVE';
+  }): void {
+    if (!this.server) {
+      return;
+    }
+
+    this.server
+      .to(`driver:${payload.driverId}`)
+      .emit(WsEvents.DRIVER_SESSION_STOPPED, payload);
+    this.server
+      .to(`company:${payload.companyId}`)
+      .emit(WsEvents.DRIVER_SESSION_STOPPED, payload);
   }
 
   getReadiness() {

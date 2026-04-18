@@ -7,6 +7,7 @@ import {
   EyeOff,
   KeyRound,
   Plus,
+  PowerOff,
   Radio,
   UserRound,
   X,
@@ -129,7 +130,6 @@ function isPastDateInput(value: string) {
 
 function validateDriverForm(
   form: DriverFormState,
-  isEditing: boolean,
   t: ReturnType<typeof useTranslations>,
 ): DriverFormErrors {
   const errors: DriverFormErrors = {};
@@ -173,6 +173,10 @@ function resolveDriverMutationError(
   t: ReturnType<typeof useTranslations>,
 ) {
   if (error instanceof ApiError) {
+    if (error.code === 'TRACKING_SESSION_INACTIVE') {
+      return t('drivers_page.disconnect_inactive');
+    }
+
     if (error.code === 'DRIVER_PHONE_EXISTS') {
       return t('drivers_page.phone_exists');
     }
@@ -209,6 +213,10 @@ function resolveDriverMutationError(
   return t('drivers_page.unexpected_error');
 }
 
+function formatDriverName(driver: Pick<Driver, 'firstName' | 'lastName'>) {
+  return `${driver.firstName} ${driver.lastName}`.trim();
+}
+
 export default function DriversPage() {
   const t = useTranslations();
   const qc = useQueryClient();
@@ -222,6 +230,9 @@ export default function DriversPage() {
   const [formErrors, setFormErrors] = useState<DriverFormErrors>({});
   const [feedback, setFeedback] = useState<DriverFeedback | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [disconnectingDriverId, setDisconnectingDriverId] = useState<string | null>(
+    null,
+  );
 
   // Tick every minute so session durations re-render without a full refetch
   const [, setTick] = useState(0);
@@ -232,6 +243,8 @@ export default function DriversPage() {
 
   const canManageDrivers =
     user?.role === 'SUPER_ADMIN' || user?.role === 'COMPANY_ADMIN';
+  const canDisconnectDrivers =
+    canManageDrivers || user?.role === 'DISPATCHER';
   const isEditing = editingDriverId !== null;
 
   const { data, isLoading } = useQuery({
@@ -344,9 +357,38 @@ export default function DriversPage() {
     },
   });
 
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
+  const disconnectMutation = useMutation({
+    mutationFn: (driver: Driver) =>
+      apiClient.post<{ isOnline: boolean }>(
+        ENDPOINTS.TRACKING_SESSION_FORCE_STOP(driver.id),
+      ),
+    onMutate: (driver) => {
+      setFeedback(null);
+      setDisconnectingDriverId(driver.id);
+    },
+    onSuccess: (_, driver) => {
+      setFeedback({
+        tone: 'success',
+        title: t('drivers_page.disconnect_success_title'),
+        description: t('drivers_page.disconnect_success_description', {
+          driverName: formatDriverName(driver),
+        }),
+      });
+      void qc.invalidateQueries({ queryKey: ['drivers', companyId] });
+      void qc.invalidateQueries({ queryKey: ['tracking', 'fleet', companyId] });
+      void qc.invalidateQueries({ queryKey: ['reports', 'summary', companyId] });
+    },
+    onError: (error) => {
+      setFeedback({
+        tone: 'danger',
+        title: t('drivers_page.disconnect_failed_title'),
+        description: resolveDriverMutationError(error, t),
+      });
+    },
+    onSettled: () => {
+      setDisconnectingDriverId(null);
+    },
+  });
 
   if (!hasHydrated) {
     return (
@@ -365,10 +407,9 @@ export default function DriversPage() {
   const totalDrivers = data?.meta?.total ?? drivers.length;
   const totalPages = data?.meta?.totalPages ?? 1;
   const activeDrivers = drivers.filter((driver) => driver.isActive).length;
-  const inactiveDrivers = drivers.length - activeDrivers;
   const onlineDrivers = drivers.filter((driver) => driver.isOnline).length;
   const activeMutation = isEditing ? updateMutation : createMutation;
-  const showActions = canManageDrivers;
+  const showActions = canManageDrivers || canDisconnectDrivers;
 
   const resetForm = () => {
     setShowCreate(false);
@@ -413,9 +454,23 @@ export default function DriversPage() {
     updateMutation.reset();
   };
 
+  const handleDisconnect = (driver: Driver) => {
+    if (
+      !confirm(
+        t('drivers_page.disconnect_confirm', {
+          driverName: formatDriverName(driver),
+        }),
+      )
+    ) {
+      return;
+    }
+
+    disconnectMutation.mutate(driver);
+  };
+
   const handleCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextErrors = validateDriverForm(form, isEditing, t);
+    const nextErrors = validateDriverForm(form, t);
     setFeedback(null);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -447,6 +502,11 @@ export default function DriversPage() {
       delete nextErrors[field];
       return nextErrors;
     });
+  };
+
+  const handleSearchChange = (value: string) => {
+    setPage(1);
+    setSearch(value);
   };
 
   return (
@@ -707,7 +767,7 @@ export default function DriversPage() {
       >
         <SearchField
           value={search}
-          onChange={setSearch}
+          onChange={handleSearchChange}
           placeholder={t('drivers_page.search_placeholder')}
           hint={t('drivers_page.search_hint')}
         />
@@ -754,19 +814,36 @@ export default function DriversPage() {
                 footer={
                   showActions ? (
                     <>
-                      <ManagementActionButton onClick={() => startEdit(driver)}>
-                        {t('edit')}
-                      </ManagementActionButton>
-                      <ManagementActionButton
-                        onClick={() => {
-                          if (confirm(t('confirm_delete'))) {
-                            deleteMutation.mutate(driver.id);
+                      {canManageDrivers ? (
+                        <ManagementActionButton onClick={() => startEdit(driver)}>
+                          {t('edit')}
+                        </ManagementActionButton>
+                      ) : null}
+                      {canDisconnectDrivers && driver.isOnline ? (
+                        <ManagementActionButton
+                          onClick={() => handleDisconnect(driver)}
+                          tone="danger"
+                          loading={
+                            disconnectMutation.isPending &&
+                            disconnectingDriverId === driver.id
                           }
-                        }}
-                        tone="danger"
-                      >
-                        {t('delete')}
-                      </ManagementActionButton>
+                        >
+                          <PowerOff size={16} />
+                          {t('drivers_page.disconnect')}
+                        </ManagementActionButton>
+                      ) : null}
+                      {canManageDrivers ? (
+                        <ManagementActionButton
+                          onClick={() => {
+                            if (confirm(t('confirm_delete'))) {
+                              deleteMutation.mutate(driver.id);
+                            }
+                          }}
+                          tone="danger"
+                        >
+                          {t('delete')}
+                        </ManagementActionButton>
+                      ) : null}
                     </>
                   ) : undefined
                 }
@@ -909,19 +986,36 @@ export default function DriversPage() {
                   {showActions ? (
                     <td className={MANAGEMENT_TABLE_CELL_CLASSNAME}>
                       <div className="flex flex-wrap items-center gap-2">
-                        <ManagementActionButton onClick={() => startEdit(driver)}>
-                          {t('edit')}
-                        </ManagementActionButton>
-                        <ManagementActionButton
-                          onClick={() => {
-                            if (confirm(t('confirm_delete'))) {
-                              deleteMutation.mutate(driver.id);
+                        {canManageDrivers ? (
+                          <ManagementActionButton onClick={() => startEdit(driver)}>
+                            {t('edit')}
+                          </ManagementActionButton>
+                        ) : null}
+                        {canDisconnectDrivers && driver.isOnline ? (
+                          <ManagementActionButton
+                            onClick={() => handleDisconnect(driver)}
+                            tone="danger"
+                            loading={
+                              disconnectMutation.isPending &&
+                              disconnectingDriverId === driver.id
                             }
-                          }}
-                          tone="danger"
-                        >
-                          {t('delete')}
-                        </ManagementActionButton>
+                          >
+                            <PowerOff size={16} />
+                            {t('drivers_page.disconnect')}
+                          </ManagementActionButton>
+                        ) : null}
+                        {canManageDrivers ? (
+                          <ManagementActionButton
+                            onClick={() => {
+                              if (confirm(t('confirm_delete'))) {
+                                deleteMutation.mutate(driver.id);
+                              }
+                            }}
+                            tone="danger"
+                          >
+                            {t('delete')}
+                          </ManagementActionButton>
+                        ) : null}
                       </div>
                     </td>
                   ) : null}

@@ -46,6 +46,18 @@ export class TrackingController {
       .then(() => ({ isOnline: false }));
   }
 
+  @Post('session/stop/:driverId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN, Role.COMPANY_ADMIN, Role.DISPATCHER)
+  forceStopSession(
+    @CurrentUser() user: RequestContext,
+    @Param('driverId', ParseUUIDPipe) driverId: string,
+  ) {
+    return this.service
+      .forceStopSession(driverId, resolveOptionalCompanyId(user))
+      .then(() => ({ isOnline: false }));
+  }
+
   @Post('location')
   @UseGuards(RolesGuard)
   @Roles(Role.DRIVER)

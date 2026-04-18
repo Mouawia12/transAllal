@@ -84,6 +84,8 @@
     "startFailed": "Could not start session. Check your internet connection and try again.",
     "stopFailedTitle": "Disconnection failed",
     "stopFailed": "Could not stop session. Please try again.",
+    "remoteStopTitle": "Tracking was stopped from the dashboard",
+    "remoteStopMessage": "An administrator ended the current live tracking session. Reconnect only when you are asked to.",
     "startingSession": "Starting session...",
     "stoppingSession": "Stopping session..."
   },

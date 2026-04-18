@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, AppStateStatus, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  AppStateStatus,
+  View,
+} from 'react-native';
 import { ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -127,6 +133,24 @@ export default function RootLayout() {
     });
     return unsubscribe;
   }, [accessToken, isRequiredSetupComplete]);
+
+  useEffect(() => {
+    if (!accessToken || !isRequiredSetupComplete) return;
+
+    const unsubscribe = realtimeClient.onSessionStopped(async () => {
+      const wasTracking = await locationTracker.isTracking();
+      await locationTracker.handleRemoteSessionStop();
+
+      if (wasTracking && appState === 'active') {
+        Alert.alert(
+          i18n.t('tracking.remoteStopTitle'),
+          i18n.t('tracking.remoteStopMessage'),
+        );
+      }
+    });
+
+    return unsubscribe;
+  }, [accessToken, appState, isRequiredSetupComplete]);
 
   // Flush offline location queue when connectivity is restored
   useEffect(() => {

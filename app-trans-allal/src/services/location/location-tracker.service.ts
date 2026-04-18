@@ -3,16 +3,20 @@ import * as TaskManager from 'expo-task-manager';
 import * as Battery from 'expo-battery';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { apiClient } from '@/services/api/client';
+import { ApiError, apiClient } from '@/services/api/client';
 import { tokenStorage } from '@/services/storage/token-storage';
 import {
+  clearQueue,
   enqueueRequest,
-  flushQueue,
   isOnline,
+  loadQueue,
+  replaceQueue,
 } from '@/services/connectivity/connectivity.service';
 
 const BACKGROUND_LOCATION_TASK = 'trans-allal-background-location';
 const TRACKING_ENABLED_KEY = 'trans-allal:tracking-enabled';
+const SESSION_STARTED_KEY = 'trans-allal:session-started-at';
+const TRACKING_SESSION_INACTIVE_CODE = 'TRACKING_SESSION_INACTIVE';
 const BATTERY_CACHE_MS = 30_000;
 const FOREGROUND_PUBLISH_INTERVAL_MS = 5_000;
 const BACKGROUND_PUBLISH_INTERVAL_MS = 10_000;
@@ -46,6 +50,13 @@ function notifyTrackingStateChange(isTracking: boolean) {
   for (const listener of trackingStateListeners) {
     listener(isTracking);
   }
+}
+
+function isTrackingSessionInactiveError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.code === TRACKING_SESSION_INACTIVE_CODE
+  );
 }
 
 function createNativeLocationTaskOptions(
@@ -225,6 +236,33 @@ async function publishCurrentLocationSnapshot(): Promise<void> {
   }
 }
 
+async function disableTrackingRuntime(options?: {
+  clearQueuedLocations?: boolean;
+}): Promise<void> {
+  if (Platform.OS === 'web') {
+    webLocationSubscription?.remove();
+    webLocationSubscription = null;
+  } else {
+    try {
+      const isRegistered = await hasStartedNativeTracking();
+      if (isRegistered) {
+        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+      }
+    } catch (error) {
+      console.warn('[LocationTracker] Stop error:', error);
+    }
+  }
+
+  currentNativeTrackingMode = null;
+  lastTrackingSample = null;
+  await AsyncStorage.removeItem(SESSION_STARTED_KEY);
+  if (options?.clearQueuedLocations) {
+    await clearQueue();
+  }
+  await setTrackingEnabled(false);
+  notifyTrackingStateChange(false);
+}
+
 async function publishLocationPayload(
   payload: ReturnType<typeof toTrackingPayload>,
 ): Promise<void> {
@@ -252,7 +290,12 @@ async function publishLocationPayload(
       );
       return;
     }
-  } catch {
+  } catch (error) {
+    if (isTrackingSessionInactiveError(error)) {
+      await disableTrackingRuntime({ clearQueuedLocations: true });
+      return;
+    }
+
     // Fall through to offline queue.
   }
 
@@ -273,16 +316,33 @@ async function flushQueuedLocationPayloads(): Promise<void> {
     return;
   }
 
-  await flushQueue(async (request) => {
-    await apiClient(
-      request.path,
-      {
-        method: request.method,
-        body: request.body,
-      },
-      { token },
-    );
-  });
+  const queuedRequests = await loadQueue();
+  if (queuedRequests.length === 0) {
+    return;
+  }
+
+  const failedRequests: typeof queuedRequests = [];
+  for (const request of queuedRequests) {
+    try {
+      await apiClient(
+        request.path,
+        {
+          method: request.method,
+          body: request.body,
+        },
+        { token },
+      );
+    } catch (error) {
+      if (isTrackingSessionInactiveError(error)) {
+        await disableTrackingRuntime({ clearQueuedLocations: true });
+        return;
+      }
+
+      failedRequests.push(request);
+    }
+  }
+
+  await replaceQueue(failedRequests);
 }
 
 // Define background task (must be at module top level)
@@ -364,25 +424,7 @@ export const locationTracker = {
   },
 
   async stop(): Promise<void> {
-    if (Platform.OS === 'web') {
-      webLocationSubscription?.remove();
-      webLocationSubscription = null;
-      await setTrackingEnabled(false);
-      notifyTrackingStateChange(false);
-      return;
-    }
-    try {
-      const isRegistered = await hasStartedNativeTracking();
-      if (isRegistered) {
-        await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
-      }
-    } catch (e) {
-      console.warn('[LocationTracker] Stop error:', e);
-    } finally {
-      currentNativeTrackingMode = null;
-      await setTrackingEnabled(false);
-      notifyTrackingStateChange(false);
-    }
+    await disableTrackingRuntime();
   },
 
   async getCurrentLocation(): Promise<Location.LocationObject> {
@@ -474,6 +516,10 @@ export const locationTracker = {
 
   async flushPendingLocations(): Promise<void> {
     await flushQueuedLocationPayloads();
+  },
+
+  async handleRemoteSessionStop(): Promise<void> {
+    await disableTrackingRuntime({ clearQueuedLocations: true });
   },
 
   subscribeToTrackingState(listener: TrackingStateListener): () => void {

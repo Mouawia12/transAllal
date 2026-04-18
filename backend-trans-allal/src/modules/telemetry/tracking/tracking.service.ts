@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   forwardRef,
   Inject,
   Injectable,
@@ -14,6 +15,7 @@ import { SaveLocationDto } from './dto/save-location.dto';
 import { WebsocketService } from '../../../websocket/websocket.service';
 
 const SPEEDING_THRESHOLD_KMH = 120;
+const TRACKING_SESSION_INACTIVE_ERROR = 'TRACKING_SESSION_INACTIVE';
 
 @Injectable()
 export class TrackingService {
@@ -31,6 +33,27 @@ export class TrackingService {
     companyId: string,
     dto: SaveLocationDto,
   ): Promise<DriverLocation> {
+    const driver = await this.driverRepo.findOne({ where: { id: driverId } });
+    if (!driver || driver.companyId !== companyId) {
+      throw new NotFoundException(`Driver ${driverId} not found`);
+    }
+
+    if (!driver.isOnline || !driver.sessionStartedAt) {
+      this.websocketService.emitDriverSessionStopped({
+        driverId,
+        companyId: driver.companyId,
+        reason: 'SESSION_INACTIVE',
+      });
+      throw new ConflictException({
+        message: 'Tracking session is inactive for this driver',
+        error: TRACKING_SESSION_INACTIVE_ERROR,
+        details: {
+          action: 'stop_tracking',
+          driverId,
+        },
+      });
+    }
+
     const location = await this.locationRepo.save(
       this.locationRepo.create({
         driverId,
@@ -52,13 +75,12 @@ export class TrackingService {
     await this.driverRepo.update(driverId, driverUpdate);
 
     this.websocketService.emitDriverLocation({
-      companyId,
+      companyId: driver.companyId,
       driverId,
       tripId: location.tripId,
       lat: Number(location.lat),
       lng: Number(location.lng),
-      speedKmh:
-        location.speedKmh === null ? null : Number(location.speedKmh),
+      speedKmh: location.speedKmh === null ? null : Number(location.speedKmh),
       heading: location.heading,
       accuracyM:
         location.accuracyM === null ? null : Number(location.accuracyM),
@@ -104,8 +126,31 @@ export class TrackingService {
   }
 
   async stopSession(driverId: string): Promise<void> {
+    await this.stopSessionInternal(driverId);
+  }
+
+  async forceStopSession(driverId: string, companyId?: string): Promise<void> {
+    await this.stopSessionInternal(driverId, {
+      companyId,
+      notifyDriver: true,
+      reason: 'DASHBOARD',
+    });
+  }
+
+  private async stopSessionInternal(
+    driverId: string,
+    options?: {
+      companyId?: string;
+      notifyDriver?: boolean;
+      reason?: 'DASHBOARD' | 'SESSION_INACTIVE';
+    },
+  ): Promise<void> {
     const driver = await this.driverRepo.findOne({ where: { id: driverId } });
     if (!driver) {
+      throw new NotFoundException(`Driver ${driverId} not found`);
+    }
+
+    if (options?.companyId && driver.companyId !== options.companyId) {
       throw new NotFoundException(`Driver ${driverId} not found`);
     }
 
@@ -121,6 +166,14 @@ export class TrackingService {
       null,
       `${driver.firstName} ${driver.lastName}`.trim(),
     );
+
+    if (options?.notifyDriver) {
+      this.websocketService.emitDriverSessionStopped({
+        driverId,
+        companyId: driver.companyId,
+        reason: options.reason ?? 'DASHBOARD',
+      });
+    }
   }
 
   async getLiveLocations(companyId: string): Promise<unknown[]> {

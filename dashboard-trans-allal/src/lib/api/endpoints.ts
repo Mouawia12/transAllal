@@ -26,6 +26,8 @@ export const ENDPOINTS = {
   // Tracking
   TRACKING_SESSION_START: '/tracking/session/start',
   TRACKING_SESSION_STOP: '/tracking/session/stop',
+  TRACKING_SESSION_FORCE_STOP: (driverId: string) =>
+    `/tracking/session/stop/${driverId}`,
   TRACKING_LOCATION: '/tracking/location',
   TRACKING_LIVE: '/tracking/live',
   TRACKING_FLEET: '/tracking/fleet',

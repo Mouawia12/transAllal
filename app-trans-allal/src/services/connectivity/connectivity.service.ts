@@ -47,6 +47,15 @@ export async function clearQueue(): Promise<void> {
   await AsyncStorage.removeItem(QUEUE_KEY);
 }
 
+export async function replaceQueue(queue: QueuedRequest[]): Promise<void> {
+  if (queue.length === 0) {
+    await clearQueue();
+    return;
+  }
+
+  await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+}
+
 export async function flushQueue(
   executor: (req: QueuedRequest) => Promise<void>,
 ): Promise<void> {

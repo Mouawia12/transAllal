@@ -8,4 +8,5 @@ export const WsEvents = {
   ALERT_RAISED: 'alert.raised',
   TRIP_STATUS_CHANGED: 'trip.status.changed',
   DRIVER_ONLINE_CHANGED: 'driver.online.changed',
+  DRIVER_SESSION_STOPPED: 'driver.session.stopped',
 } as const;
