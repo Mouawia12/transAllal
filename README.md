@@ -48,3 +48,26 @@ update workspace repository
 - The root repository is the only Git repository in this workspace.
 - Run Git commands from the root when you want to update the whole project.
 - Use `GIT_WORKFLOW.md` for the daily workflow.
+
+## Mobile App Build Delivery
+
+When the user asks for a new installable phone build of the mobile app after
+changes, use this fixed output folder without asking for the path again:
+
+```text
+/Users/mw/Downloads/app
+```
+
+Build the Android APK from `app-trans-allal`, delete any older APK and SHA256
+files already inside `/Users/mw/Downloads/app`, then place the fresh APK there
+as:
+
+```text
+/Users/mw/Downloads/app/app.apk
+```
+
+Also write its checksum next to it as:
+
+```text
+/Users/mw/Downloads/app/app.apk.sha256
+```

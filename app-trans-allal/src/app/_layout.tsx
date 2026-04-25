@@ -66,8 +66,22 @@ export default function RootLayout() {
     const isActive = appState === 'active';
 
     if (!isActive) {
-      realtimeClient.disconnect();
-      return;
+      void (async () => {
+        try {
+          const shouldKeepTracking =
+            await locationTracker.shouldKeepTrackingInBackground();
+          if (!cancelled && shouldKeepTracking) {
+            await locationTracker.syncRuntimeMode('background');
+          }
+        } catch (error) {
+          console.warn('[RootLayout] Background tracking sync failed:', error);
+        } finally {
+          realtimeClient.disconnect();
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
     // Connect (or force-reconnect to recover from silent drops) immediately so
